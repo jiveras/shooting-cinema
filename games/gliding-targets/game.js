@@ -22,9 +22,11 @@
     panel: '#0d151c',
     panelEdge: '#24394a',
     panelHot: '#33546b',
-    // Måltavlans band, utifrån och in
-    bands: ['#182a37', '#213849', '#182a37', '#213849', '#2a4a60', '#386582'],
-    ring: '#355c74',
+    // Måltavlans band, utifrån och in. Mitten är MÖRKAST: detektorn letar
+    // efter en prick som är ljusare än omgivningen, så en ljus mitt
+    // skulle "dränka" laserpricken just där man vill träffa.
+    bands: ['#1d3140', '#17293a', '#1d3140', '#14232f', '#101c26', '#0b141b'],
+    ring: '#3a6178',
     hit: [70, 170, 120], // dov grön
     miss: [110, 122, 134],
     hole: '#05080a',
@@ -110,9 +112,17 @@
       o.stop(t + dur + 0.02);
     } catch { /* inget ljud */ }
   }
+  // Skottljud (games/shared/gunshots.js). Valet sparas.
+  const Gunshots = window.Gunshots;
+  const guns = Gunshots ? new Gunshots(ac) : null;
+  const SOUND_KEY = 'gliding-targets:shotSound';
+  let shotSound = store.get(SOUND_KEY) || 'shotgun';
+  const fire = () => guns && guns.play(shotSound);
+
   const sfx = {
-    hit: (pts) => { beep(380 + pts * 55, 0.12, { type: 'triangle', gain: 0.2 }); if (pts === 10) beep(1500, 0.18, { at: 0.06, gain: 0.12 }); },
-    miss: () => beep(110, 0.1, { type: 'square', gain: 0.05 }),
+    // Träffljudet kommer en aning efter skottet så att det inte dränks
+    hit: (pts) => { beep(380 + pts * 55, 0.12, { type: 'triangle', gain: 0.2, at: 0.1 }); if (pts === 10) beep(1500, 0.18, { at: 0.16, gain: 0.12 }); },
+    miss: () => {},
     escape: () => beep(200, 0.15, { type: 'sine', gain: 0.06 }),
     tick: () => beep(520, 0.1),
     go: () => beep(880, 0.25, { gain: 0.2 }),
@@ -316,13 +326,22 @@
   function shoot(x, y) {
     if (game.scene === 'menu' || game.scene === 'results') {
       const b = game.buttons.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+      if (b && b.id === 'sound') {
+        // Byt skottljud – och provskjut det nya direkt
+        if (!Gunshots) return;
+        shotSound = Gunshots.next(shotSound);
+        store.set(SOUND_KEY, shotSound);
+        fire();
+        return;
+      }
+      fire();
       if (!b) return;
-      sfx.select();
       if (b.id === 'menu') toMenu();
       else if (b.id === 'again') startRound(game.mode);
       else startRound(b.id);
       return;
     }
+    fire();
     if (game.scene !== 'play') return;
 
     const st = game.stats;
@@ -383,6 +402,11 @@
     ctx.fill();
     ctx.stroke();
     const cx = b.x + b.w / 2;
+    if (b.small) {
+      text(b.label, cx, b.y + b.h * 0.38, 32, C.text, 'center', 600);
+      text(b.sub, cx, b.y + b.h * 0.7, 20, C.dim);
+      return;
+    }
     text(b.label, cx, b.y + b.h * (b.sub ? 0.36 : 0.5), 40, C.text, 'center', 600);
     if (b.sub) text(b.sub, cx, b.y + b.h * 0.6, 22, C.dim);
     if (b.extra) text(b.extra, cx, b.y + b.h * 0.8, 20, C.dim);
@@ -393,7 +417,7 @@
     const bh = 190 * S;
     const gap = 32 * S;
     const x0 = W / 2 - bw - gap / 2;
-    const y0 = H * 0.36;
+    const y0 = H * 0.3;
     game.buttons = MODE_ORDER.map((id, i) => {
       const best = getBest(id);
       return {
@@ -407,6 +431,18 @@
         h: bh,
       };
     });
+    if (Gunshots) {
+      game.buttons.push({
+        id: 'sound',
+        label: `Skottljud: ${Gunshots.nameOf(shotSound)}`,
+        sub: 'Skjut här för att byta',
+        x: x0,
+        y: y0 + 2 * (bh + gap),
+        w: bw * 2 + gap,
+        h: 110 * S,
+        small: true,
+      });
+    }
   }
 
   function layoutResults() {

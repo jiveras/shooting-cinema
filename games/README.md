@@ -5,6 +5,7 @@ Spel att skjuta på med laser-mouse. Varje spel är en fristående webbsida som 
 | Spel | Beskrivning |
 |------|-------------|
 | [`gliding-targets/`](gliding-targets/) | **Glidande mål** – måltavlor glider över skärmen, poäng efter ring |
+| [`shared/`](shared/) | Delat mellan spelen: `gunshots.js` – syntetiserade skottljud (hagelgevär, pistol, gevär, laser) |
 
 ## Starta
 - **Från laser-mouse:** välj spel under *Spel* och tryck *Starta på vald skärm* – spelet öppnas i helskärm på den kalibrerade skärmen.
@@ -21,4 +22,14 @@ laser-mouse hittar spelet automatiskt.
 - Mörk bakgrund, dova färger. Ljusa ytor bländar kameran.
 - Låg röd kanal i grafiken – detektorn letar efter röda/varma ljuspunkter.
 - Inga små ljusa prickar (t.ex. kulhål) – rita dem mörka.
+- Där man ska träffa (t.ex. måltavlans mitt) ska det vara **mörkt** – laserpricken måste vara ljusare än sin omgivning för att synas.
 - Reagera på `pointerdown`/klick. Esc i menyn stänger fönstret.
+
+### Skottljud i ett nytt spel
+```html
+<script src="../shared/gunshots.js"></script>
+```
+```js
+const guns = new Gunshots(() => audioContext);
+guns.play('shotgun'); // 'pistol', 'rifle', 'laser', 'off'
+```
