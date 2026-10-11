@@ -90,6 +90,44 @@
   // ---- Etapp 3: skärm och kalibrering ----
   const screenControl = new window.ScreenControl({ $, store, camera });
 
+  // ---- Spel ----
+  const gameSelect = $('game-select');
+  let games = [];
+  let gameOpen = false;
+  function syncGameUi() {
+    const g = games.find((x) => x.id === gameSelect.value);
+    $('game-desc').textContent = g ? g.description : 'Inga spel hittades i games/.';
+    $('game-start').disabled = !g;
+    $('game-stop').disabled = !gameOpen;
+  }
+  async function loadGames() {
+    games = (await window.laserMouse.listGames?.()) || [];
+    gameSelect.innerHTML = '';
+    for (const g of games) {
+      const opt = document.createElement('option');
+      opt.value = g.id;
+      opt.textContent = g.name;
+      gameSelect.appendChild(opt);
+    }
+    const saved = store.get('gameId');
+    if (saved && games.some((g) => g.id === saved)) gameSelect.value = saved;
+    syncGameUi();
+  }
+  gameSelect.addEventListener('change', () => {
+    store.set('gameId', gameSelect.value);
+    syncGameUi();
+  });
+  $('game-start').addEventListener('click', async () => {
+    const res = await window.laserMouse.openGame(gameSelect.value, screenControl.display?.id);
+    gameOpen = !!res?.ok;
+    syncGameUi();
+  });
+  $('game-stop').addEventListener('click', () => window.laserMouse.closeGame());
+  window.laserMouse.onGameClosed?.(() => {
+    gameOpen = false;
+    syncGameUi();
+  });
+
   // ---- Fasta prickar (ignorera-zoner) ----
   const spots = new window.StaticSpots({ store, detector });
   const spotsStatus = $('spots-status');
@@ -320,6 +358,7 @@
     if (cameras.length === 0) showMessage('Ingen webbkamera hittades.');
 
     await screenControl.init();
+    await loadGames();
   }
 
   init();

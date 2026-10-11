@@ -27,4 +27,10 @@ contextBridge.exposeInMainWorld('laserMouse', {
   mouseClick: (displayId, x, y) => ipcRenderer.invoke('mouse:click', { displayId, x, y }),
   mouseMove: (displayId, x, y) => ipcRenderer.send('mouse:move', { displayId, x, y }),
   onMouseDisabled: (cb) => ipcRenderer.on('mouse:disabled', (_e, reason) => cb(reason)),
+
+  // Spel i ../games
+  listGames: () => ipcRenderer.invoke('games:list'),
+  openGame: (gameId, displayId) => ipcRenderer.invoke('games:open', gameId, displayId),
+  closeGame: () => ipcRenderer.invoke('games:close'),
+  onGameClosed: (cb) => ipcRenderer.on('game:closed', () => cb()),
 });

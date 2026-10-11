@@ -5,6 +5,7 @@ Hemmabygge för skytteträning med laser: en projektor visar mål, en webbkamera
 | Katalog | Innehåll |
 |---------|----------|
 | [`laser-mouse/`](laser-mouse/) | Electron-app: laserprick via webbkamera → musklick på vald skärm |
+| [`games/`](games/) | Spel att skjuta på – vanliga webbsidor som reagerar på musklick |
 
 ## Plan
 1. **Bron** – laser på vägg → musklick på skärm (`laser-mouse`)

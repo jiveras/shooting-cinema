@@ -3,6 +3,7 @@
 
 const { app, BrowserWindow, globalShortcut, ipcMain, screen, session, systemPreferences } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 
 const ROOT = path.join(__dirname, '..');
 const openDevTools = process.argv.includes('--devtools');
@@ -208,6 +209,69 @@ ipcMain.on('mouse:move', (_e, { displayId, x, y }) => {
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
+// ---- Spel ----
+// Spelen ligger i ../games/<id>/ med index.html + game.json.
+// De öppnas i helskärm på vald skärm och tar emot vanliga musklick.
+
+const GAMES_DIR = path.join(ROOT, '..', 'games');
+let gameWindow = null;
+
+function listGames() {
+  try {
+    return fs
+      .readdirSync(GAMES_DIR, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && fs.existsSync(path.join(GAMES_DIR, d.name, 'index.html')))
+      .map((d) => {
+        let meta = {};
+        try {
+          meta = JSON.parse(fs.readFileSync(path.join(GAMES_DIR, d.name, 'game.json'), 'utf8'));
+        } catch { /* game.json saknas – använd katalognamnet */ }
+        return { id: d.name, name: meta.name || d.name, description: meta.description || '' };
+      });
+  } catch {
+    return [];
+  }
+}
+
+function closeGame() {
+  if (gameWindow && !gameWindow.isDestroyed()) gameWindow.close();
+}
+
+async function openGame(gameId, displayId) {
+  const game = listGames().find((g) => g.id === gameId);
+  if (!game) return { ok: false, reason: 'Spelet finns inte' };
+  const display =
+    screen.getAllDisplays().find((d) => d.id === displayId) || screen.getPrimaryDisplay();
+
+  closeGame();
+  gameWindow = new BrowserWindow({
+    ...display.bounds,
+    frame: false,
+    show: false,
+    backgroundColor: '#06080b',
+    acceptFirstMouse: true, // macOS: första klicket ska träffa spelet, inte bara aktivera fönstret
+    title: game.name,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  gameWindow.on('closed', () => {
+    gameWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:closed');
+  });
+  await gameWindow.loadFile(path.join(GAMES_DIR, game.id, 'index.html'));
+  gameWindow.setBounds(display.bounds);
+  if (process.platform === 'darwin') {
+    gameWindow.setSimpleFullScreen(true); // täcker även menyraden, utan ny Space
+  } else {
+    gameWindow.setFullScreen(true);
+  }
+  gameWindow.show();
+  return { ok: true, name: game.name };
+}
+
+ipcMain.handle('games:list', () => listGames());
+ipcMain.handle('games:open', (_e, gameId, displayId) => openGame(gameId, displayId));
+ipcMain.handle('games:close', () => closeGame());
+
 // ---- Huvudfönster ----
 
 function createWindow() {
@@ -231,6 +295,7 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
     closeOverlay();
+    closeGame();
   });
 }
 

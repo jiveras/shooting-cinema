@@ -94,3 +94,7 @@ Kör `npm install` en gång till (musstyrningen, `@nut-tree-fork/libnut`, har la
 
 **macOS:** första gången frågar systemet om *Hjälpmedel*-behörighet. Slå på **Electron** under
 Systeminställningar → Integritet och säkerhet → Hjälpmedel, och starta sedan om appen.
+
+## Spel
+
+Under **Spel** i panelen listas spelen i [`../games/`](../games/). **Starta på vald skärm** öppnar spelet i helskärm på den skärm du har kalibrerat; Esc i spelets meny (eller **Stäng**) stänger det. Slå på **Klicka vid skott** så blir laserträffarna klick i spelet.
