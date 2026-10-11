@@ -98,3 +98,11 @@ Systeminställningar → Integritet och säkerhet → Hjälpmedel, och starta se
 ## Spel
 
 Under **Spel** i panelen listas spelen i [`../games/`](../games/). **Starta på vald skärm** öppnar spelet i helskärm på den skärm du har kalibrerat; Esc i spelets meny (eller **Stäng**) stänger det. Slå på **Klicka vid skott** så blir laserträffarna klick i spelet.
+
+## Inskjutning
+
+Lasern sitter aldrig exakt i siktlinjen (tejpad på pipan, eller en laserpatron). Tryck **Inskjutning**: ett mål visas mitt på vald skärm, sikta med kornet mitt på det och skjut fem skott. Appen räknar ut medianavvikelsen (ett ryckt skott förstör inte) och flyttar därefter alla träffar och musklick lika mycket. Resultatet visar också hur samlad träffbilden var.
+
+- Sparas per skärm och gäller tills du trycker **Nollställ** eller gör om den.
+- Gör om inskjutningen om du flyttar lasern eller ändrar skjutavstånd.
+- Inga musklick görs under inskjutningen.

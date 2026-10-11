@@ -13,7 +13,8 @@
   const SHOT_LIFETIME = 2500;
 
   const state = {
-    mode: 'idle', // 'idle' | 'calibrate' | 'test'
+    mode: 'idle', // 'idle' | 'calibrate' | 'test' | 'zero'
+    zero: null, // { target, hits, total, result }
     target: null, // { x, y, index, total, progress, waiting }
     captured: [], // redan registrerade punkter
     pointer: null, // { x, y } normaliserat, eller null
@@ -55,6 +56,10 @@
         break;
       case 'text':
         state.text = msg.text;
+        break;
+      case 'zero':
+        state.zero = msg;
+        if (msg.hits.length) state.flashUntil = performance.now() + 200;
         break;
     }
   });
@@ -150,6 +155,48 @@
     }
   }
 
+  // Inskjutning: mål i mitten, träffarna markeras. Efteråt visas både
+  // var lasern träffade (grått) och var träffarna hamnar korrigerade (grönt).
+  function drawZero(W, H, now) {
+    ctx.fillStyle = 'rgba(5, 8, 14, 0.92)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = DIM;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, W - 4, H - 4);
+
+    const z = state.zero;
+    if (!z) return;
+    const tx = z.target.x * W;
+    const ty = z.target.y * H;
+    const flash = now < state.flashUntil;
+    const col = flash ? GREEN : CYAN;
+    for (const r of [140, 90, 40]) ring(tx, ty, r, col, 2);
+    cross(tx, ty, 12, 190, col, 1.5);
+
+    const res = z.result;
+    z.hits.forEach((h, i) => {
+      const x = h.x * W;
+      const y = h.y * H;
+      const c = res ? 'rgba(120, 140, 160, 0.6)' : CYAN;
+      ring(x, y, 11, c, 2);
+      label(String(i + 1), x + 20, y - 16, 16, c);
+      if (res) {
+        const cx = (h.x - res.dx) * W;
+        const cy = (h.y - res.dy) * H;
+        ring(cx, cy, 11, GREEN, 2.5);
+      }
+    });
+
+    if (res) {
+      label('Inskjutning klar', W / 2, H * 0.12, 34);
+      label(res.text, W / 2, H * 0.12 + 44, 22, DIM);
+      label(`Träffbild: ${res.spreadPx} px · grått = där lasern träffade, grönt = korrigerat`, W / 2, H * 0.88, 18, DIM);
+    } else {
+      label('Inskjutning', W / 2, H * 0.12, 34);
+      label(`Sikta med kornet mitt på målet och skjut · skott ${z.hits.length} av ${z.total}`, W / 2, H * 0.12 + 44, 22, DIM);
+    }
+  }
+
   function frame() {
     const W = innerWidth;
     const H = innerHeight;
@@ -157,6 +204,7 @@
     ctx.clearRect(0, 0, W, H);
     if (state.mode === 'calibrate') drawCalibrate(W, H, now);
     else if (state.mode === 'test') drawTest(W, H, now);
+    else if (state.mode === 'zero') drawZero(W, H, now);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

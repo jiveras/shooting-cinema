@@ -36,7 +36,19 @@
         mouseClick: $('mouse-click'),
         mouseFollow: $('mouse-follow'),
         mouseStatus: $('mouse-status'),
+        zero: $('zero-button'),
+        zeroReset: $('zero-reset'),
+        zeroStatus: $('zero-status'),
       };
+
+      // ---- Inskjutning ----
+      // Lasern sitter aldrig exakt i siktlinjen. Vid inskjutning siktar man med
+      // kornet mitt på ett mål och skjuter några skott; medianavvikelsen
+      // sparas och dras sedan av från alla träffar (per skärm).
+      this.zero = null; // { dx, dy, spreadPx, shots } normaliserat
+      this.zeroing = null; // pågående inskjutning
+      this.el.zero.addEventListener('click', () => this.startZero());
+      this.el.zeroReset.addEventListener('click', () => this.resetZero());
 
       // ---- Etapp 4: riktiga musklick ----
       // Alltid AV vid start, av säkerhetsskäl.
@@ -144,6 +156,120 @@
         console.warn('Kunde inte läsa kalibrering', e);
       }
       this._status = this.mapping ? 'Kalibrerad ✓' : 'Inte kalibrerad för den här skärmen';
+      this._loadZero();
+    }
+
+    // ---------- Inskjutning ----------
+
+    _zeroKey() {
+      return `zero:${this.display?.id}`;
+    }
+
+    _loadZero() {
+      this.zero = null;
+      try {
+        const raw = this.store.get(this._zeroKey());
+        if (raw) this.zero = JSON.parse(raw);
+      } catch { /* ignorera */ }
+      this._updateZeroStatus();
+    }
+
+    _applyZero(s) {
+      if (!this.zero) return s;
+      return { x: s.x - this.zero.dx, y: s.y - this.zero.dy };
+    }
+
+    _describeOffset(dx, dy) {
+      const b = this.display.bounds;
+      const px = Math.round(Math.abs(dx * b.width));
+      const py = Math.round(Math.abs(dy * b.height));
+      const h = px < 2 ? null : `${px} px för långt till ${dx > 0 ? 'höger' : 'vänster'}`;
+      const v = py < 2 ? null : `${py} px för ${dy > 0 ? 'lågt' : 'högt'}`;
+      return [h, v].filter(Boolean).join(' och ') || 'mitt i prick';
+    }
+
+    _updateZeroStatus() {
+      const el = this.el.zeroStatus;
+      if (!el) return;
+      if (this.zeroing) {
+        el.textContent = `Inskjutning: skott ${this.zeroing.hits.length} av ${this.zeroing.total}`;
+      } else if (this.zero && this.display) {
+        el.textContent = `Lasern hamnar ${this._describeOffset(this.zero.dx, this.zero.dy)} – korrigeras. Träffbild ${this.zero.spreadPx} px.`;
+      } else {
+        el.textContent = 'Ingen inskjutning';
+      }
+      el.classList.toggle('ok', !!this.zero && !this.zeroing);
+      this.el.zeroReset.disabled = !this.zero || !!this.zeroing;
+      this.el.zero.disabled = !this.mapping || !!this.zeroing;
+    }
+
+    async startZero() {
+      if (!this.mapping) return this._setStatus('Kalibrera först.');
+      if (!this.camera.running) return this._setStatus('Starta kameran först.');
+      await this.bridge.openOverlay(this.display.id);
+      this.mode = 'zero';
+      this.zeroing = { target: { x: 0.5, y: 0.5 }, hits: [], total: 5 };
+      this.bridge.sendOverlay({ type: 'mode', mode: 'zero' });
+      this._sendZero();
+      this.sounds.start();
+      this.sounds.say('Inskjutning. Sikta med kornet mitt på målet och skjut fem skott.');
+      this._updateZeroStatus();
+      this._updateUi();
+    }
+
+    resetZero() {
+      this.zero = null;
+      this.store.set(this._zeroKey(), '');
+      this._updateZeroStatus();
+    }
+
+    _sendZero(result = null) {
+      const z = this.zeroing;
+      if (!z) return;
+      this.bridge.sendOverlay({ type: 'zero', target: z.target, hits: z.hits, total: z.total, result });
+    }
+
+    _zeroShot(raw) {
+      const z = this.zeroing;
+      z.hits.push({ x: raw.x, y: raw.y });
+      this.sounds.shot();
+      this._updateZeroStatus();
+      const left = z.total - z.hits.length;
+      if (left > 0) {
+        this._sendZero();
+        setTimeout(() => this.sounds.say(`${left} kvar`), 250);
+        return;
+      }
+      this._finishZero();
+    }
+
+    _finishZero() {
+      const z = this.zeroing;
+      const med = (arr) => {
+        const a = [...arr].sort((p, q) => p - q);
+        const m = a.length >> 1;
+        return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+      };
+      const dx = med(z.hits.map((h) => h.x - z.target.x));
+      const dy = med(z.hits.map((h) => h.y - z.target.y));
+      // Träffbild: medianavstånd från gruppens mitt, i skärmpixlar
+      const b = this.display.bounds;
+      const cx = z.target.x + dx;
+      const cy = z.target.y + dy;
+      const spreadPx = Math.round(med(z.hits.map((h) => Math.hypot((h.x - cx) * b.width, (h.y - cy) * b.height))));
+
+      this.zero = { dx, dy, spreadPx, shots: z.hits.length };
+      this.store.set(this._zeroKey(), JSON.stringify(this.zero));
+      const text = `Lasern hamnade ${this._describeOffset(dx, dy)}. Det korrigeras nu.`;
+      this._sendZero({ dx, dy, text, spreadPx });
+      this.sounds.done();
+      setTimeout(() => this.sounds.say(`Klart. ${text}`), 500);
+      this.zeroing = null;
+      this._updateZeroStatus();
+      // Visa resultatet en stund, gå sedan till testläget för att kontrollera
+      setTimeout(() => {
+        if (this.mode === 'zero') this.startTest();
+      }, 4500);
     }
 
     // Kalibreringen gäller samma bildformat. Byter man upplösning med samma
@@ -183,7 +309,9 @@
 
     async stop() {
       this.sounds.silence();
-      if (this.mode === 'calibrate') this.sounds.say('Avbrutet');
+      if (this.mode === 'calibrate' || this.zeroing) this.sounds.say('Avbrutet');
+      this.zeroing = null;
+      this._updateZeroStatus();
       if (this.mode === 'calibrate') this._setStatus(this.mapping ? 'Kalibrerad ✓ (avbröt ny kalibrering)' : 'Kalibrering avbruten');
       this.mode = 'idle';
       this.calibrator = null;
@@ -271,10 +399,17 @@
       this._drawOutline(ctx, w, h);
 
       if (result.found) {
-        const s = this.mapping.toScreen(
+        const raw = this.mapping.toScreen(
           (result.x * this.mapping.camWidth) / w,
           (result.y * this.mapping.camHeight) / h
         );
+        if (this.mode === 'zero') {
+          // Under inskjutningen: okorrigerade träffar, inga musklick
+          this.lastScreen = raw;
+          if (isShot && this.zeroing) this._zeroShot(raw);
+          return;
+        }
+        const s = this._applyZero(raw);
         this.lastScreen = s;
         const inside = s.x >= 0 && s.x <= 1 && s.y >= 0 && s.y <= 1;
         if (this.mouseLive && inside) {
@@ -398,8 +533,9 @@
       this.el.status.classList.toggle('ok', !!this.mapping && this.mode !== 'calibrate');
       this.el.test.disabled = !this.mapping || this.mode === 'test';
       this.el.stop.disabled = !busy;
-      this.el.calibrate.disabled = this.mode === 'calibrate';
+      this.el.calibrate.disabled = this.mode === 'calibrate' || this.mode === 'zero';
       this.el.test.textContent = this.mode === 'test' ? 'Testar…' : 'Testa';
+      this._updateZeroStatus();
     }
   }
 
