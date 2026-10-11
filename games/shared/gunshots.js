@@ -7,6 +7,10 @@
 // Typer: 'shotgun' (hagelgevär med pumprepetering), 'pistol', 'rifle',
 // 'laser', 'off'. Allt byggs av brus, oscillatorer, filter och ett
 // genererat rumseko (convolver).
+//
+// Snabb eldgivning: varje skott spelas i en egen "röst". När ett nytt skott
+// avfyras tonas föregående röst ut på några hundradelar (som att dämpa en
+// cymbal), så ljuden aldrig staplas på varandra.
 
 (function () {
   const TYPES = [
@@ -17,6 +21,8 @@
     { id: 'off', name: 'Inget' },
   ];
 
+  const CHOKE_S = 0.04; // hur snabbt föregående skott tonas ut
+
   class Gunshots {
     /** @param {() => BaseAudioContext} getCtx */
     constructor(getCtx) {
@@ -24,6 +30,7 @@
       this.volume = 0.9;
       this._chains = new WeakMap();
       this._noise = new WeakMap();
+      this._voice = null;
     }
 
     static get types() {
@@ -49,12 +56,15 @@
       }
       if (!ctx) return;
       const fn = this['_' + type];
-      if (fn) fn.call(this, ctx, ctx.currentTime + 0.005);
+      if (!fn) return;
+      const t = ctx.currentTime + 0.005;
+      this._choke(t);
+      this._voice = this._newVoice(ctx);
+      fn.call(this, ctx, t, this._voice);
     }
 
-    // ---------- Byggstenar ----------
+    // ---------- Röster och utgång ----------
 
-    // Utgång: kompressor för "punch" + rumseko på en send-buss.
     _chain(ctx) {
       let c = this._chains.get(ctx);
       if (c) return c;
@@ -65,21 +75,42 @@
       comp.knee.value = 6;
       comp.ratio.value = 6;
       comp.attack.value = 0.002;
-      comp.release.value = 0.2;
+      comp.release.value = 0.15;
       master.connect(comp).connect(ctx.destination);
 
       const reverb = ctx.createConvolver();
-      reverb.buffer = this._impulse(ctx, 2.2, 2.6);
-      const wet = ctx.createGain();
-      wet.gain.value = 1;
-      reverb.connect(wet).connect(master);
+      reverb.buffer = this._impulse(ctx, 0.9, 3.5); // kort rum – ingen lång svans
+      reverb.connect(master);
 
       c = { master, reverb };
       this._chains.set(ctx, c);
       return c;
     }
 
-    // Genererat rumseko: stereobrus som dör ut exponentiellt.
+    // En röst = en torr och en våt buss som kan tonas ut tillsammans.
+    _newVoice(ctx) {
+      const { master, reverb } = this._chain(ctx);
+      const dry = ctx.createGain();
+      const wet = ctx.createGain();
+      dry.connect(master);
+      wet.connect(reverb);
+      return { ctx, dry, wet };
+    }
+
+    _choke(t) {
+      const v = this._voice;
+      if (!v) return;
+      for (const g of [v.dry, v.wet]) {
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(g.gain.value, t);
+        g.gain.linearRampToValueAtTime(0, t + CHOKE_S);
+      }
+      // Koppla loss när den tystnat
+      setTimeout(() => {
+        try { v.dry.disconnect(); v.wet.disconnect(); } catch { /* redan loss */ }
+      }, 1500);
+    }
+
     _impulse(ctx, seconds, decay) {
       const len = Math.floor(ctx.sampleRate * seconds);
       const buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -101,9 +132,19 @@
       return b;
     }
 
+    _send(ctx, node, v, wet) {
+      node.connect(v.dry);
+      if (wet) {
+        const s = ctx.createGain();
+        s.gain.value = wet;
+        node.connect(s).connect(v.wet);
+      }
+    }
+
+    // ---------- Byggstenar ----------
+
     /** Brusstöt genom ett filter med svepande frekvens. */
-    _burst(ctx, t, { dur, gain, type = 'lowpass', f0, f1 = f0, q = 0.7, attack = 0.002, wet = 0 }) {
-      const { master, reverb } = this._chain(ctx);
+    _burst(ctx, v, t, { dur, gain, type = 'lowpass', f0, f1 = f0, q = 0.7, attack = 0.002, wet = 0 }) {
       const src = ctx.createBufferSource();
       src.buffer = this._noiseBuf(ctx);
       const filt = ctx.createBiquadFilter();
@@ -115,19 +156,14 @@
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(gain, t + attack);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      src.connect(filt).connect(g).connect(master);
-      if (wet) {
-        const s = ctx.createGain();
-        s.gain.value = wet;
-        g.connect(s).connect(reverb);
-      }
+      src.connect(filt).connect(g);
+      this._send(ctx, g, v, wet);
       src.start(t, Math.random() * 1.5);
       src.stop(t + dur + 0.05);
     }
 
     /** Lågfrekvent "dunk" – tryckvågen i bröstet. */
-    _thump(ctx, t, { f0, f1, dur, gain, wet = 0 }) {
-      const { master, reverb } = this._chain(ctx);
+    _thump(ctx, v, t, { f0, f1, dur, gain, wet = 0 }) {
       const o = ctx.createOscillator();
       o.type = 'sine';
       o.frequency.setValueAtTime(f0, t);
@@ -136,86 +172,77 @@
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g).connect(master);
-      if (wet) {
-        const s = ctx.createGain();
-        s.gain.value = wet;
-        g.connect(s).connect(reverb);
-      }
+      o.connect(g);
+      this._send(ctx, g, v, wet);
       o.start(t);
       o.stop(t + dur + 0.05);
     }
 
     /** Metalliskt klick (mekanism). */
-    _click(ctx, t, { freq, gain, dur = 0.03 }) {
-      this._burst(ctx, t, { dur, gain, type: 'bandpass', f0: freq, f1: freq * 0.8, q: 6, attack: 0.001, wet: 0.1 });
-      const { master } = this._chain(ctx);
+    _click(ctx, v, t, { freq, gain, dur = 0.03 }) {
+      this._burst(ctx, v, t, { dur, gain, type: 'bandpass', f0: freq, f1: freq * 0.8, q: 6, attack: 0.001, wet: 0.1 });
       const o = ctx.createOscillator();
       o.type = 'square';
       o.frequency.setValueAtTime(freq * 0.35, t);
       const g = ctx.createGain();
       g.gain.setValueAtTime(gain * 0.15, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.8);
-      o.connect(g).connect(master);
+      o.connect(g).connect(v.dry);
       o.start(t);
       o.stop(t + dur);
     }
 
     // ---------- Vapen ----------
 
-    _shotgun(ctx, t) {
+    _shotgun(ctx, t, v) {
       // Krutsmällen: bred brusstöt som mörknar snabbt
-      this._burst(ctx, t, { dur: 0.7, gain: 1.0, type: 'lowpass', f0: 7000, f1: 250, attack: 0.0015, wet: 0.55 });
+      this._burst(ctx, v, t, { dur: 0.4, gain: 1.0, type: 'lowpass', f0: 7000, f1: 250, attack: 0.0015, wet: 0.45 });
       // Knallen i mynningen
-      this._burst(ctx, t, { dur: 0.05, gain: 0.7, type: 'highpass', f0: 2500, f1: 1500, attack: 0.001 });
+      this._burst(ctx, v, t, { dur: 0.04, gain: 0.7, type: 'highpass', f0: 2500, f1: 1500, attack: 0.001 });
       // Tryckvågen
-      this._thump(ctx, t, { f0: 140, f1: 38, dur: 0.45, gain: 1.0, wet: 0.3 });
-      this._thump(ctx, t + 0.01, { f0: 80, f1: 30, dur: 0.6, gain: 0.6 });
-      // Mullrande eko
-      this._burst(ctx, t + 0.08, { dur: 1.2, gain: 0.18, type: 'lowpass', f0: 900, f1: 120, attack: 0.08, wet: 0.6 });
+      this._thump(ctx, v, t, { f0: 140, f1: 38, dur: 0.3, gain: 1.0, wet: 0.25 });
+      this._thump(ctx, v, t + 0.01, { f0: 80, f1: 30, dur: 0.38, gain: 0.6 });
+      // Kort mullrande eko
+      this._burst(ctx, v, t + 0.06, { dur: 0.45, gain: 0.15, type: 'lowpass', f0: 900, f1: 150, attack: 0.05, wet: 0.5 });
       // Pumprepetering: klick-klack
-      this._click(ctx, t + 0.55, { freq: 2600, gain: 0.45, dur: 0.035 });
-      this._burst(ctx, t + 0.56, { dur: 0.09, gain: 0.12, type: 'bandpass', f0: 1200, f1: 700, q: 2 });
-      this._click(ctx, t + 0.74, { freq: 1900, gain: 0.55, dur: 0.045 });
-      this._burst(ctx, t + 0.75, { dur: 0.08, gain: 0.14, type: 'bandpass', f0: 900, f1: 500, q: 2 });
+      this._click(ctx, v, t + 0.34, { freq: 2600, gain: 0.45, dur: 0.03 });
+      this._burst(ctx, v, t + 0.35, { dur: 0.07, gain: 0.12, type: 'bandpass', f0: 1200, f1: 700, q: 2 });
+      this._click(ctx, v, t + 0.48, { freq: 1900, gain: 0.55, dur: 0.04 });
+      this._burst(ctx, v, t + 0.49, { dur: 0.06, gain: 0.14, type: 'bandpass', f0: 900, f1: 500, q: 2 });
     }
 
-    _pistol(ctx, t) {
-      this._burst(ctx, t, { dur: 0.22, gain: 0.85, type: 'lowpass', f0: 6000, f1: 600, attack: 0.001, wet: 0.3 });
-      this._burst(ctx, t, { dur: 0.03, gain: 0.6, type: 'highpass', f0: 3000, f1: 2000, attack: 0.001 });
-      this._thump(ctx, t, { f0: 220, f1: 70, dur: 0.12, gain: 0.7, wet: 0.15 });
-      this._click(ctx, t + 0.09, { freq: 3200, gain: 0.2, dur: 0.02 }); // slutstycket
+    _pistol(ctx, t, v) {
+      this._burst(ctx, v, t, { dur: 0.16, gain: 0.85, type: 'lowpass', f0: 6000, f1: 600, attack: 0.001, wet: 0.25 });
+      this._burst(ctx, v, t, { dur: 0.03, gain: 0.6, type: 'highpass', f0: 3000, f1: 2000, attack: 0.001 });
+      this._thump(ctx, v, t, { f0: 220, f1: 70, dur: 0.1, gain: 0.7, wet: 0.1 });
+      this._click(ctx, v, t + 0.07, { freq: 3200, gain: 0.2, dur: 0.02 }); // slutstycket
     }
 
-    _rifle(ctx, t) {
+    _rifle(ctx, t, v) {
       // Skarp överljudsknall
-      this._burst(ctx, t, { dur: 0.06, gain: 1.0, type: 'highpass', f0: 1800, f1: 1200, attack: 0.0008 });
-      this._burst(ctx, t, { dur: 0.4, gain: 0.8, type: 'lowpass', f0: 8000, f1: 400, attack: 0.001, wet: 0.5 });
-      this._thump(ctx, t, { f0: 160, f1: 50, dur: 0.25, gain: 0.7, wet: 0.2 });
-      // Eko från en avlägsen skogskant
-      this._burst(ctx, t + 0.42, { dur: 0.5, gain: 0.22, type: 'lowpass', f0: 2500, f1: 300, attack: 0.01, wet: 0.7 });
-      this._burst(ctx, t + 0.9, { dur: 0.6, gain: 0.09, type: 'lowpass', f0: 1500, f1: 200, attack: 0.02, wet: 0.8 });
+      this._burst(ctx, v, t, { dur: 0.05, gain: 1.0, type: 'highpass', f0: 1800, f1: 1200, attack: 0.0008 });
+      this._burst(ctx, v, t, { dur: 0.28, gain: 0.8, type: 'lowpass', f0: 8000, f1: 400, attack: 0.001, wet: 0.45 });
+      this._thump(ctx, v, t, { f0: 160, f1: 50, dur: 0.2, gain: 0.7, wet: 0.2 });
+      // Ett kort eko
+      this._burst(ctx, v, t + 0.25, { dur: 0.3, gain: 0.16, type: 'lowpass', f0: 2500, f1: 300, attack: 0.01, wet: 0.5 });
     }
 
-    _laser(ctx, t) {
-      const { master, reverb } = this._chain(ctx);
+    _laser(ctx, t, v) {
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
       o.frequency.setValueAtTime(1800, t);
-      o.frequency.exponentialRampToValueAtTime(160, t + 0.22);
+      o.frequency.exponentialRampToValueAtTime(160, t + 0.18);
       const f = ctx.createBiquadFilter();
       f.type = 'lowpass';
       f.frequency.value = 3500;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(0.35, t + 0.005);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
-      o.connect(f).connect(g).connect(master);
-      const s = ctx.createGain();
-      s.gain.value = 0.25;
-      g.connect(s).connect(reverb);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      o.connect(f).connect(g);
+      this._send(ctx, g, v, 0.2);
       o.start(t);
-      o.stop(t + 0.3);
+      o.stop(t + 0.25);
     }
   }
 
