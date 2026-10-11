@@ -1,0 +1,21 @@
+{
+  "name": "laser-mouse",
+  "version": "0.4.0",
+  "description": "Omvandlar en laserprick på väggen, sedd genom webbkameran, till musklick på skärmen.",
+  "main": "main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --devtools"
+  },
+  "author": "Johan Iverås",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^44.7.0"
+  },
+  "optionalDependencies": {
+    "@nut-tree-fork/libnut-darwin": "^2.7.5",
+    "@nut-tree-fork/libnut-win32": "^2.7.5",
+    "@nut-tree-fork/libnut-linux": "^2.7.5"
+  }
+}
