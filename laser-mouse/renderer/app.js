@@ -119,6 +119,10 @@
     renderGames();
   }
 
+  // Re-scan games/ whenever the window gets focus, so games added while the
+  // app is running show up without a restart.
+  window.addEventListener('focus', () => loadGames().catch(console.error));
+
   gameSelect.addEventListener('change', () => {
     store.set('gameId', gameSelect.value);
     syncGameUi();
