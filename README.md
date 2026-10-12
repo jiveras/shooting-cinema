@@ -39,7 +39,7 @@ flowchart LR
 - 🔫 **Zeroing** – compensates for where the laser is mounted (taped to the barrel, laser cartridge, …)
 - 🔊 **Eyes-free setup** – voice and sound guidance during calibration ("Point 2, top right"), so you can watch your sights instead of the screen
 - 🖥️ **Multi-monitor** – choose which display receives the clicks
-- 🕹️ **Built-in games** that launch full screen on the projector – *Gliding Targets* and *Clay Pigeons* (trap, skeet, sporting) – with synthesized gunshot sounds (shotgun with pump action, pistol, rifle, laser)
+- 🕹️ **Built-in games** that launch full screen on the projector – *Gliding Targets*, *Clay Pigeons* (trap, skeet, sporting) and *Shot Timer* with six drills – with synthesized gunshot sounds (shotgun with pump action, pistol, rifle, laser)
 - 🛑 **Emergency stop** – <kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>L</kbd> turns mouse control off from anywhere
 - 🌍 **Swedish and English** – Swedish by default; switch language in the toolbar (the games follow along)
 
@@ -134,6 +134,27 @@ Clays are released automatically after a random delay – long enough to break o
 |---|---|
 | ![Clay Pigeons menu](docs/images/clay-menu.png) | ![Two clays in flight from the skeet houses](docs/images/clay-flight.png) |
 
+### Shot Timer & Drills
+
+Measure and sharpen the basics, like with a real shot timer. A beep starts the clock, every shot is timed **and** placed – something an ordinary shot timer can't do – and a shot before the beep is a false start.
+
+| Drill | What you do | What is measured |
+|---|---|---|
+| **Free timer** | Beep, then shoot as you like | First-shot time and splits |
+| **Mount drill** | Gun lowered; on the beep, mount and hit – 10 reps | Average time to shot, hit rate |
+| **Bill drill** | Six shots on one target, as fast as you can | Total time, splits, hits and points |
+| **El Presidente** | Three targets, two shots each | Total time, hits and points |
+| **Reaction** | One of five targets lights up – find it and hit it, 10 reps | Reaction time, correct-target rate |
+| **Grouping** | Ten calm shots on a small target, no clock | Group size and where the group sits |
+
+Every result is saved: the menu shows your best for each drill, and the results screen shows your personal best and a trend line of your last ten runs.
+
+| Drills | Reaction | Results and trend |
+|---|---|---|
+| ![Shot Timer menu](docs/images/timer-menu.png) | ![Reaction drill with one lit target](docs/images/timer-reaction.png) | ![Bill drill results with trend line](docs/images/timer-results.png) |
+
+> Times measured through Laser Mouse include the camera delay (typically 0.05–0.1 s) – the same for every shot, so your progress is still comparable.
+
 ### Bring your own
 
 Because the laser becomes an ordinary mouse click, you're not limited to the built-in games. Try a browser game, a drawing app, or a classic shooter. New games are just a folder with an `index.html` – see [docs/TECHNICAL.md](docs/TECHNICAL.md#writing-a-game).
@@ -163,7 +184,7 @@ Because the laser becomes an ordinary mouse click, you're not limited to the bui
 | Folder | What's inside |
 |---|---|
 | [`laser-mouse/`](laser-mouse/) | The Electron app: webcam, detection, calibration, zeroing, mouse control |
-| [`games/`](games/) | Games to shoot at – Gliding Targets and Clay Pigeons; plain web pages that react to mouse clicks |
+| [`games/`](games/) | Games and drills to shoot at – Gliding Targets, Clay Pigeons and Shot Timer; plain web pages that react to mouse clicks |
 | [`docs/`](docs/) | [Technical documentation](docs/TECHNICAL.md) and screenshots |
 
 Curious how the detection, calibration maths or mouse control work? Read **[docs/TECHNICAL.md](docs/TECHNICAL.md)**.
@@ -175,7 +196,7 @@ Curious how the detection, calibration maths or mouse control work? Read **[docs
 - [x] Calibration, zeroing, static-spot filtering
 - [x] First game: Gliding Targets
 - [x] Clay Pigeons – trap, skeet and sporting
-- [ ] Shot timer and drills
+- [x] Shot timer and drills
 - [x] Swedish and English UI
 
 ## Related projects

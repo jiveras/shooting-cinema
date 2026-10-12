@@ -6,6 +6,7 @@ Games to shoot at with Laser Mouse. Each game is a standalone web page that reac
 |---|---|
 | [`gliding-targets/`](gliding-targets/) | **Gliding Targets** (*Glidande mål*) – targets glide across the screen, score by ring. Easy, medium, hard or pop-up. Swedish and English. |
 | [`clay-pigeons/`](clay-pigeons/) | **Clay Pigeons** (*Lerduvor*) – clays thrown in an arc: trap, skeet or sporting. 25 clays, two shots per throw, automatic release or call "Pull!". Swedish and English. |
+| [`shot-timer/`](shot-timer/) | **Shot Timer** (*Skottimer*) – a shot timer with six drills: free timer, mount drill, Bill drill, El Presidente, reaction and grouping. False starts, saved results, personal bests and trends. Swedish and English. |
 | [`shared/`](shared/) | Shared code: `gunshots.js` – synthesized gunshot sounds (shotgun, pistol, rifle, laser) |
 
 ## Playing

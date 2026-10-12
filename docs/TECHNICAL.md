@@ -193,6 +193,14 @@ Games are plain web pages: they work standalone in a browser too (press **F** fo
 - A round is planned up front as 25 clays in singles and doubles (`planRound`). Each throw allows two shots; a shot breaks the nearest unbroken clay within *clay radius + shot pattern radius*, and a hit within 60 % of the clay radius counts as *smoked*.
 - Release is either automatic (random 2.4–3.6 s delay) or voice: the microphone's RMS level must stay above a threshold for 3 frames, and the game ignores it for 0.9 s after its own gunshot sound. If the microphone is unavailable it falls back to automatic release. The page CSP allows `media-src mediastream:` and Laser Mouse's session permission handler allows `media`, so the game window can use the microphone.
 
+### Shot Timer internals
+
+- Each drill is a small declarative definition in `DRILLS`: targets (normalized positions, radius in px at 1080 p), reps, shots per rep and a timeout. The flow per rep is *standby* (random 1.5–3.5 s, like a shot timer's random start) → *go* (beep, clock running) → *rep* (1.8 s to see the result and reload).
+- A shot during *standby* is a false start: it is counted and the rep restarts. Shot times are measured from the beep with `performance.now()`.
+- `computeResult` turns the recorded shots into one **primary value** (always "lower is better": seconds, or px for grouping) plus rows for the results screen. Grouping uses the median distance from the group centre, so one flyer doesn't dominate.
+- Results are kept in `localStorage` per drill (`shot-timer:history:<drill>`, the last 50). The personal best is the minimum; the trend line shows the last ten.
+- A trigger-control drill (analysing the aim just before the shot) was left out on purpose: it needs a laser that is on *before* the shot, while a laser training cartridge only flashes at the moment of firing.
+
 ---
 
 ## Writing a game
