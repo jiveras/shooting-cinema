@@ -1,35 +1,15 @@
-# games
+# Games
 
-Spel att skjuta på med laser-mouse. Varje spel är en fristående webbsida som reagerar på vanliga musklick – så de fungerar lika bra med mus som med laser.
+Games to shoot at with Laser Mouse. Each game is a standalone web page that reacts to ordinary mouse clicks – so they work just as well with a mouse as with a laser.
 
-| Spel | Beskrivning |
-|------|-------------|
-| [`gliding-targets/`](gliding-targets/) | **Glidande mål** – måltavlor glider över skärmen, poäng efter ring |
-| [`shared/`](shared/) | Delat mellan spelen: `gunshots.js` – syntetiserade skottljud (hagelgevär, pistol, gevär, laser) |
+| Game | Description |
+|---|---|
+| [`gliding-targets/`](gliding-targets/) | **Gliding Targets** – targets glide across the screen, score by ring. Easy, medium, hard or pop-up. |
+| [`shared/`](shared/) | Shared code: `gunshots.js` – synthesized gunshot sounds (shotgun, pistol, rifle, laser) |
 
-## Starta
-- **Från laser-mouse:** välj spel under *Spel* och tryck *Starta på vald skärm* – spelet öppnas i helskärm på den kalibrerade skärmen.
-- **Fristående:** öppna spelets `index.html` i en webbläsare och tryck **F** för helskärm.
+## Playing
+- **From Laser Mouse:** pick a game under *Spel* and press *Starta på vald skärm* – it opens full screen on the calibrated display.
+- **Standalone:** open the game's `index.html` in a browser and press **F** for full screen.
 
-## Nytt spel
-Skapa en katalog med `index.html` och en `game.json`:
-```json
-{ "name": "Spelets namn", "description": "En mening om spelet." }
-```
-laser-mouse hittar spelet automatiskt.
-
-### Designregler för projektor + webbkamera
-- Mörk bakgrund, dova färger. Ljusa ytor bländar kameran.
-- Låg röd kanal i grafiken – detektorn letar efter röda/varma ljuspunkter.
-- Inga små ljusa prickar (t.ex. kulhål) – rita dem mörka.
-- Där man ska träffa (t.ex. måltavlans mitt) ska det vara **mörkt** – laserpricken måste vara ljusare än sin omgivning för att synas.
-- Reagera på `pointerdown`/klick. Esc i menyn stänger fönstret.
-
-### Skottljud i ett nytt spel
-```html
-<script src="../shared/gunshots.js"></script>
-```
-```js
-const guns = new Gunshots(() => audioContext);
-guns.play('shotgun'); // 'pistol', 'rifle', 'laser', 'off'
-```
+## Making a game
+See [Writing a game](../docs/TECHNICAL.md#writing-a-game) – including the design rules that keep the projector from confusing the laser detector.
