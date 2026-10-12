@@ -1,11 +1,16 @@
-// Överläggsfönstret som täcker vald skärm.
+// The overlay window that covers the chosen display.
 //
-// OBS: allt ritas i blå/cyan/grön ton med LÅG röd kanal, och som tunna
-// linjer/ringar. Då kan kameran inte förväxla grafiken med laserpricken.
+// NOTE: everything is drawn in blue/cyan/green with a LOW red channel, and as
+// thin lines/rings. That way the camera can never mistake the graphics for
+// the laser dot.
+//
+// The language is sent from the main window as { type: 'lang', lang }.
 
 (function () {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
+
+  i18n.init(null);
 
   const CYAN = '#3fb6ff';
   const GREEN = '#2fd27a';
@@ -16,8 +21,8 @@
     mode: 'idle', // 'idle' | 'calibrate' | 'test' | 'zero'
     zero: null, // { target, hits, total, result }
     target: null, // { x, y, index, total, progress, waiting }
-    captured: [], // redan registrerade punkter
-    pointer: null, // { x, y } normaliserat, eller null
+    captured: [], // points already captured
+    pointer: null, // { x, y } normalized, or null
     shots: [],
     flashUntil: 0,
     text: '',
@@ -34,6 +39,9 @@
 
   window.overlayBridge.onMessage((msg) => {
     switch (msg.type) {
+      case 'lang':
+        i18n.set(msg.lang);
+        break;
       case 'mode':
         state.mode = msg.mode;
         state.pointer = null;
@@ -94,7 +102,7 @@
   function drawCalibrate(W, H, now) {
     ctx.fillStyle = 'rgba(5, 8, 14, 0.92)';
     ctx.fillRect(0, 0, W, H);
-    // Ram som visar vilken skärm som kalibreras
+    // Frame that shows which display is being calibrated
     ctx.strokeStyle = DIM;
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, W - 4, H - 4);
@@ -104,38 +112,35 @@
       cross(p.x * W, p.y * H, 4, 10, GREEN, 2);
     }
 
-    const t = state.target;
-    if (t) {
-      const x = t.x * W;
-      const y = t.y * H;
+    const tg = state.target;
+    if (tg) {
+      const x = tg.x * W;
+      const y = tg.y * H;
       const flash = now < state.flashUntil;
       ring(x, y, 42, flash ? GREEN : CYAN, 3);
       ring(x, y, 14, flash ? GREEN : CYAN, 2);
       cross(x, y, 20, 70, flash ? GREEN : CYAN, 2);
 
-      // Framstegsbåge
-      if (t.progress > 0) {
+      // Progress arc
+      if (tg.progress > 0) {
         ctx.strokeStyle = GREEN;
         ctx.lineWidth = 6;
         ctx.beginPath();
-        ctx.arc(x, y, 54, -Math.PI / 2, -Math.PI / 2 + t.progress * Math.PI * 2);
+        ctx.arc(x, y, 54, -Math.PI / 2, -Math.PI / 2 + tg.progress * Math.PI * 2);
         ctx.stroke();
       }
 
-      // Text nära punkten men in mot mitten
-      const ty = t.y < 0.5 ? y + 110 : y - 110;
-      const tx = Math.min(Math.max(x, 220), W - 220);
-      label(`Punkt ${t.index + 1} av ${t.total}`, tx, ty, 24);
-      label(
-        t.waiting ? 'Flytta lasern till nästa punkt' : 'Sikta mitt i ringen och håll stilla',
-        tx, ty + 32, 18, DIM
-      );
+      // Text close to the point but towards the centre of the screen
+      const ty = tg.y < 0.5 ? y + 110 : y - 110;
+      const tx = Math.min(Math.max(x, 260), W - 260);
+      label(t('overlay.point', { n: tg.index + 1, total: tg.total }), tx, ty, 24);
+      label(t(tg.waiting ? 'overlay.move' : 'overlay.aim'), tx, ty + 32, 18, DIM);
     }
     if (state.text) label(state.text, W / 2, H / 2, 28);
   }
 
   function drawTest(W, H, now) {
-    // Tunn ram så man ser vilken skärm som är aktiv
+    // Thin frame so you can see which display is active
     ctx.strokeStyle = DIM;
     ctx.lineWidth = 3;
     ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
@@ -155,8 +160,8 @@
     }
   }
 
-  // Inskjutning: mål i mitten, träffarna markeras. Efteråt visas både
-  // var lasern träffade (grått) och var träffarna hamnar korrigerade (grönt).
+  // Zeroing: a target in the centre with the hits marked. Afterwards it shows
+  // both where the laser hit (grey) and where the hits land corrected (green).
   function drawZero(W, H, now) {
     ctx.fillStyle = 'rgba(5, 8, 14, 0.92)';
     ctx.fillRect(0, 0, W, H);
@@ -188,12 +193,12 @@
     });
 
     if (res) {
-      label('Inskjutning klar', W / 2, H * 0.12, 34);
+      label(t('overlay.zeroDone'), W / 2, H * 0.12, 34);
       label(res.text, W / 2, H * 0.12 + 44, 22, DIM);
-      label(`Träffbild: ${res.spreadPx} px · grått = där lasern träffade, grönt = korrigerat`, W / 2, H * 0.88, 18, DIM);
+      label(t('overlay.zeroLegend', { px: res.spreadPx }), W / 2, H * 0.88, 18, DIM);
     } else {
-      label('Inskjutning', W / 2, H * 0.12, 34);
-      label(`Sikta med kornet mitt på målet och skjut · skott ${z.hits.length} av ${z.total}`, W / 2, H * 0.12 + 44, 22, DIM);
+      label(t('overlay.zeroTitle'), W / 2, H * 0.12, 34);
+      label(t('overlay.zeroAim', { n: z.hits.length, total: z.total }), W / 2, H * 0.12 + 44, 22, DIM);
     }
   }
 

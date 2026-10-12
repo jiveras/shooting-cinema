@@ -1,27 +1,28 @@
-// Syntetiserade skottljud för spelen – inga ljudfiler behövs.
+// Synthesized gunshot sounds for the games – no audio files needed.
 //
-// Användning:
+// Usage:
 //   const guns = new Gunshots(() => audioContext);
 //   guns.play('shotgun');
+//   Gunshots.nameOf('shotgun', 'en')   // "Shotgun" (names in 'sv' and 'en')
 //
-// Typer: 'shotgun' (hagelgevär med pumprepetering), 'pistol', 'rifle',
-// 'laser', 'off'. Allt byggs av brus, oscillatorer, filter och ett
-// genererat rumseko (convolver).
+// Types: 'shotgun' (with pump action), 'pistol', 'rifle', 'laser', 'off'.
+// Everything is built from noise, oscillators, filters and a generated room
+// echo (convolver).
 //
-// Snabb eldgivning: varje skott spelas i en egen "röst". När ett nytt skott
-// avfyras tonas föregående röst ut på några hundradelar (som att dämpa en
-// cymbal), så ljuden aldrig staplas på varandra.
+// Rapid fire: every shot plays in its own "voice". When a new shot is fired,
+// the previous voice fades out within a few hundredths of a second (like
+// choking a cymbal), so the sounds never pile up.
 
 (function () {
   const TYPES = [
-    { id: 'shotgun', name: 'Hagelgevär' },
-    { id: 'pistol', name: 'Pistol' },
-    { id: 'rifle', name: 'Gevär' },
-    { id: 'laser', name: 'Laser' },
-    { id: 'off', name: 'Inget' },
+    { id: 'shotgun', name: { sv: 'Hagelgevär', en: 'Shotgun' } },
+    { id: 'pistol', name: { sv: 'Pistol', en: 'Pistol' } },
+    { id: 'rifle', name: { sv: 'Gevär', en: 'Rifle' } },
+    { id: 'laser', name: { sv: 'Laser', en: 'Laser' } },
+    { id: 'off', name: { sv: 'Inget', en: 'None' } },
   ];
 
-  const CHOKE_S = 0.04; // hur snabbt föregående skott tonas ut
+  const CHOKE_S = 0.04; // how quickly the previous shot fades out
 
   class Gunshots {
     /** @param {() => BaseAudioContext} getCtx */
@@ -34,11 +35,12 @@
     }
 
     static get types() {
-      return TYPES.map((t) => ({ ...t }));
+      return TYPES.map((t) => ({ id: t.id, name: { ...t.name } }));
     }
 
-    static nameOf(id) {
-      return (TYPES.find((t) => t.id === id) || TYPES[0]).name;
+    static nameOf(id, lang = 'sv') {
+      const name = (TYPES.find((t) => t.id === id) || TYPES[0]).name;
+      return name[lang] || name.sv;
     }
 
     static next(id) {
@@ -63,7 +65,7 @@
       fn.call(this, ctx, t, this._voice);
     }
 
-    // ---------- Röster och utgång ----------
+    // ---------- Voices and output ----------
 
     _chain(ctx) {
       let c = this._chains.get(ctx);
@@ -79,7 +81,7 @@
       master.connect(comp).connect(ctx.destination);
 
       const reverb = ctx.createConvolver();
-      reverb.buffer = this._impulse(ctx, 0.9, 3.5); // kort rum – ingen lång svans
+      reverb.buffer = this._impulse(ctx, 0.9, 3.5); // small room – no long tail
       reverb.connect(master);
 
       c = { master, reverb };
@@ -87,7 +89,7 @@
       return c;
     }
 
-    // En röst = en torr och en våt buss som kan tonas ut tillsammans.
+    // A voice = a dry and a wet bus that can be faded out together.
     _newVoice(ctx) {
       const { master, reverb } = this._chain(ctx);
       const dry = ctx.createGain();
@@ -105,9 +107,9 @@
         g.gain.setValueAtTime(g.gain.value, t);
         g.gain.linearRampToValueAtTime(0, t + CHOKE_S);
       }
-      // Koppla loss när den tystnat
+      // Disconnect once it has gone quiet
       setTimeout(() => {
-        try { v.dry.disconnect(); v.wet.disconnect(); } catch { /* redan loss */ }
+        try { v.dry.disconnect(); v.wet.disconnect(); } catch { /* already disconnected */ }
       }, 1500);
     }
 
@@ -141,9 +143,9 @@
       }
     }
 
-    // ---------- Byggstenar ----------
+    // ---------- Building blocks ----------
 
-    /** Brusstöt genom ett filter med svepande frekvens. */
+    /** A noise burst through a filter with a sweeping frequency. */
     _burst(ctx, v, t, { dur, gain, type = 'lowpass', f0, f1 = f0, q = 0.7, attack = 0.002, wet = 0 }) {
       const src = ctx.createBufferSource();
       src.buffer = this._noiseBuf(ctx);
@@ -162,7 +164,7 @@
       src.stop(t + dur + 0.05);
     }
 
-    /** Lågfrekvent "dunk" – tryckvågen i bröstet. */
+    /** A low-frequency "thump" – the pressure wave you feel in your chest. */
     _thump(ctx, v, t, { f0, f1, dur, gain, wet = 0 }) {
       const o = ctx.createOscillator();
       o.type = 'sine';
@@ -178,7 +180,7 @@
       o.stop(t + dur + 0.05);
     }
 
-    /** Metalliskt klick (mekanism). */
+    /** A metallic click (the mechanism). */
     _click(ctx, v, t, { freq, gain, dur = 0.03 }) {
       this._burst(ctx, v, t, { dur, gain, type: 'bandpass', f0: freq, f1: freq * 0.8, q: 6, attack: 0.001, wet: 0.1 });
       const o = ctx.createOscillator();
@@ -192,19 +194,19 @@
       o.stop(t + dur);
     }
 
-    // ---------- Vapen ----------
+    // ---------- Weapons ----------
 
     _shotgun(ctx, t, v) {
-      // Krutsmällen: bred brusstöt som mörknar snabbt
+      // The powder blast: a broad noise burst that darkens quickly
       this._burst(ctx, v, t, { dur: 0.4, gain: 1.0, type: 'lowpass', f0: 7000, f1: 250, attack: 0.0015, wet: 0.45 });
-      // Knallen i mynningen
+      // The crack at the muzzle
       this._burst(ctx, v, t, { dur: 0.04, gain: 0.7, type: 'highpass', f0: 2500, f1: 1500, attack: 0.001 });
-      // Tryckvågen
+      // The pressure wave
       this._thump(ctx, v, t, { f0: 140, f1: 38, dur: 0.3, gain: 1.0, wet: 0.25 });
       this._thump(ctx, v, t + 0.01, { f0: 80, f1: 30, dur: 0.38, gain: 0.6 });
-      // Kort mullrande eko
+      // A short rumbling echo
       this._burst(ctx, v, t + 0.06, { dur: 0.45, gain: 0.15, type: 'lowpass', f0: 900, f1: 150, attack: 0.05, wet: 0.5 });
-      // Pumprepetering: klick-klack
+      // Pump action: click-clack
       this._click(ctx, v, t + 0.34, { freq: 2600, gain: 0.45, dur: 0.03 });
       this._burst(ctx, v, t + 0.35, { dur: 0.07, gain: 0.12, type: 'bandpass', f0: 1200, f1: 700, q: 2 });
       this._click(ctx, v, t + 0.48, { freq: 1900, gain: 0.55, dur: 0.04 });
@@ -215,15 +217,15 @@
       this._burst(ctx, v, t, { dur: 0.16, gain: 0.85, type: 'lowpass', f0: 6000, f1: 600, attack: 0.001, wet: 0.25 });
       this._burst(ctx, v, t, { dur: 0.03, gain: 0.6, type: 'highpass', f0: 3000, f1: 2000, attack: 0.001 });
       this._thump(ctx, v, t, { f0: 220, f1: 70, dur: 0.1, gain: 0.7, wet: 0.1 });
-      this._click(ctx, v, t + 0.07, { freq: 3200, gain: 0.2, dur: 0.02 }); // slutstycket
+      this._click(ctx, v, t + 0.07, { freq: 3200, gain: 0.2, dur: 0.02 }); // the slide
     }
 
     _rifle(ctx, t, v) {
-      // Skarp överljudsknall
+      // A sharp supersonic crack
       this._burst(ctx, v, t, { dur: 0.05, gain: 1.0, type: 'highpass', f0: 1800, f1: 1200, attack: 0.0008 });
       this._burst(ctx, v, t, { dur: 0.28, gain: 0.8, type: 'lowpass', f0: 8000, f1: 400, attack: 0.001, wet: 0.45 });
       this._thump(ctx, v, t, { f0: 160, f1: 50, dur: 0.2, gain: 0.7, wet: 0.2 });
-      // Ett kort eko
+      // A short echo
       this._burst(ctx, v, t + 0.25, { dur: 0.3, gain: 0.16, type: 'lowpass', f0: 2500, f1: 300, attack: 0.01, wet: 0.5 });
     }
 

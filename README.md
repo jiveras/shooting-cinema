@@ -41,6 +41,7 @@ flowchart LR
 - 🖥️ **Multi-monitor** – choose which display receives the clicks
 - 🕹️ **Built-in games** that launch full screen on the projector, with synthesized gunshot sounds (shotgun with pump action, pistol, rifle, laser)
 - 🛑 **Emergency stop** – <kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>L</kbd> turns mouse control off from anywhere
+- 🌍 **Swedish and English** – Swedish by default; switch language in the toolbar (the games follow along)
 
 ---
 
@@ -71,17 +72,19 @@ npm start
 
 On macOS you'll be asked for **camera** access the first time, and later for **Accessibility** access when you turn on mouse clicks (*System Settings → Privacy & Security → Accessibility → Electron*, then restart the app).
 
+The app starts in Swedish – pick **English** in the **Språk** (*Language*) menu at the top right. Your choice is remembered, and games you launch from the app open in the same language.
+
 ### 2. Point the camera and tune detection
 
-Aim the webcam at the wall or projector screen so it sees the whole picture. Turn on **Visa mask** (*show mask*) and point the laser: the pixels the app thinks are laser light turn green.
+Aim the webcam at the wall or projector screen so it sees the whole picture. Turn on **Show mask** and point the laser: the pixels the app thinks are laser light turn green.
 
 <img src="docs/images/laser-mouse-mask.png" width="480" alt="Detection mask: the laser dot is highlighted in green">
 
-If something else lights up, raise **Kontrast mot omgivning** (*contrast to surroundings*). If an LED or reflection keeps triggering, switch the laser off and press **Lär in fasta prickar** (*learn static spots*) – the app watches for two seconds and ignores those spots from then on.
+If something else lights up, raise **Contrast to surroundings**. If an LED or reflection keeps triggering, switch the laser off and press **Learn static spots** – the app watches for two seconds and ignores those spots from then on.
 
 ### 3. Calibrate
 
-Pick the display under **Skärm & kalibrering**, choose 4 or 9 points and press **Kalibrera**. A target appears on that screen – hold the laser steady in the ring until the green arc fills, then move on to the next. A voice tells you where to aim, so you don't have to look at the screen.
+Pick the display under **Display & calibration**, choose 4 or 9 points and press **Calibrate**. A target appears on that screen – hold the laser steady in the ring until the green arc fills, then move on to the next. A voice tells you where to aim, so you don't have to look at the screen.
 
 ![Calibration target with progress arc](docs/images/calibration.png)
 
@@ -89,7 +92,7 @@ When it's done, a test overlay shows a crosshair wherever you point.
 
 ### 4. Zero your laser
 
-A laser taped to a barrel is never exactly in line with the sights. Press **Inskjutning** (*zeroing*), aim at the centre of the target **with your sights**, and fire five shots. The app takes the median offset (one flinched shot won't ruin it) and corrects every shot from then on.
+A laser taped to a barrel is never exactly in line with the sights. Press **Zero**, aim at the centre of the target **with your sights**, and fire five shots. The app takes the median offset (one flinched shot won't ruin it) and corrects every shot from then on.
 
 <img src="docs/images/zeroing.png" width="560" alt="Zeroing result: grey rings where the laser hit, green rings after correction">
 
@@ -97,7 +100,7 @@ A laser taped to a barrel is never exactly in line with the sights. Press **Insk
 
 ### 5. Shoot!
 
-Tick **Klicka vid skott** (*click on shot*), pick a game under **Spel** and press **Starta på vald skärm** – it opens full screen on your calibrated display. Every laser flash is now a mouse click.
+Tick **Click on shot**, pick a game under **Games** and press **Start on selected display** – it opens full screen on your calibrated display. Every laser flash is now a mouse click.
 
 > 🛑 Press <kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>L</kbd> at any time to turn mouse control off.
 
@@ -107,7 +110,7 @@ Tick **Klicka vid skott** (*click on shot*), pick a game under **Spel** and pres
 
 ### Gliding Targets
 
-Targets glide across the screen – 60 seconds, score by ring (10 in the centre down to 5). Four modes: **Easy**, **Medium**, **Hard** (small targets that weave) and **Pop-up** (static targets that appear and vanish). Everything is chosen by shooting at it – no keyboard needed.
+Targets glide across the screen – 60 seconds, score by ring (10 in the centre down to 5). Four modes: **Easy**, **Medium**, **Hard** (small targets that weave) and **Pop-up** (static targets that appear and vanish). Everything is chosen by shooting at it – no keyboard needed, not even to switch between Swedish and English.
 
 | Menu | In play | Results |
 |---|---|---|
@@ -149,7 +152,6 @@ Because the laser becomes an ordinary mouse click, you're not limited to the bui
 
 Curious how the detection, calibration maths or mouse control work? Read **[docs/TECHNICAL.md](docs/TECHNICAL.md)**.
 
-> ℹ️ The app's user interface is currently in Swedish. The English terms are given in *italics* above.
 
 ## Roadmap
 
@@ -158,7 +160,7 @@ Curious how the detection, calibration maths or mouse control work? Read **[docs
 - [x] First game: Gliding Targets
 - [ ] Clay pigeons – targets thrown in an arc, like the real thing
 - [ ] Shot timer and drills
-- [ ] English UI
+- [x] Swedish and English UI
 
 ## Related projects
 

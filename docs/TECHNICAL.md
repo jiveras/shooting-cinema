@@ -11,6 +11,7 @@ How Shooting Cinema works under the hood. For what it does and how to use it, se
 - [Screen overlay](#screen-overlay)
 - [Mouse control](#mouse-control)
 - [Sound and voice](#sound-and-voice)
+- [Languages](#languages)
 - [Games](#games)
 - [Writing a game](#writing-a-game)
 - [Persistence](#persistence)
@@ -53,8 +54,9 @@ laser-mouse/
 ├── preload.js                IPC bridge for the main window (window.laserMouse)
 ├── screen-overlay-preload.js IPC bridge for the overlay window (window.overlayBridge)
 └── renderer/
-    ├── index.html, styles.css  UI (Swedish)
-    ├── app.js                  wiring: camera picker, sliders, readouts, games, static spots
+    ├── index.html, styles.css  UI markup (texts come from i18n.js)
+    ├── i18n.js                 Swedish/English strings and the t() helper
+    ├── app.js                  wiring: camera picker, sliders, readouts, games, static spots, language
     ├── camera.js               getUserMedia → canvas, onFrame hook, exposure controls
     ├── laser-detect.js         point detector (ring test + blob clustering)
     ├── static-spots.js         learn & ignore static bright spots
@@ -73,7 +75,7 @@ laser-mouse/
 | `openOverlay(displayId)` / `closeOverlay()` / `sendOverlay(msg)` | Overlay window on a display |
 | `mouseEnable()` / `mouseDisable()` / `onMouseDisabled(cb)` | Turn OS mouse control on/off (checks Accessibility on macOS) |
 | `mouseClick(displayId, x, y)` / `mouseMove(displayId, x, y)` | Click / move at a normalized point (0–1) on a display |
-| `listGames()` / `openGame(id, displayId)` / `closeGame()` | Games in `../games/` |
+| `listGames()` / `openGame(id, displayId, lang)` / `closeGame()` | Games in `../games/` (opened with `?lang=`) |
 
 ---
 
@@ -158,7 +160,24 @@ Mouse control uses [`@nut-tree-fork/libnut`](https://www.npmjs.com/package/@nut-
 
 ## Sound and voice
 
-`sound.js` synthesizes all feedback with the Web Audio API (no audio files): a rising tone while a calibration point fills, a two-note chime on capture, a buzz when you're still on an already captured point, a fanfare when done, and a noise-burst "bang" in test mode. Spoken guidance ("Punkt 2, uppe till höger") uses `speechSynthesis` with a Swedish voice when available. The main window uses `autoplayPolicy: 'no-user-gesture-required'`.
+`sound.js` synthesizes all feedback with the Web Audio API (no audio files): a rising tone while a calibration point fills, a two-note chime on capture, a buzz when you're still on an already captured point, a fanfare when done, and a noise-burst "bang" in test mode. Spoken guidance ("Point 2, top right" / "Punkt 2, uppe till höger") uses `speechSynthesis` with a voice for the current UI language (`sv-SE` or `en-GB`) when one is installed. The main window uses `autoplayPolicy: 'no-user-gesture-required'`.
+
+---
+
+## Languages
+
+The app is bilingual: **Swedish by default, English selectable** in the toolbar. The choice is saved (`lang` in `localStorage`) and applied live – no restart.
+
+- `renderer/i18n.js` holds every user-visible string for both languages under the same keys, plus `t(key, params)` with `{placeholder}` substitution.
+- Static markup uses `data-i18n="key"` (text) or `data-i18n-html="key"` (trusted markup such as `<kbd>`); `i18n.apply()` fills them in.
+- Dynamic texts (status boxes, readouts, camera messages) are stored as `{ key, params }` and re-rendered on `i18n.onChange`, so switching language updates everything immediately.
+- The overlay window loads the same `i18n.js` and receives `{ type: 'lang', lang }` messages.
+- Spoken guidance picks a system voice for the current language. Calibration point positions are returned as keys (`topLeft`, `center`, …) and translated via `where.*`.
+- Games get the language as `?lang=sv|en` when launched from Laser Mouse, and have their own language button. `game.json` `name`/`description` may be `{ "sv": …, "en": … }`.
+
+To add a language, add a block with the same keys to `STRINGS` in `i18n.js` (and to the game's `STRINGS`), plus an `<option>` in the language picker.
+
+**Code comments and documentation are always in English.**
 
 ---
 
@@ -175,10 +194,13 @@ Games are plain web pages: they work standalone in a browser too (press **F** fo
 Create a folder in `games/` with an `index.html` and a `game.json`:
 
 ```json
-{ "name": "My game", "description": "One sentence about the game." }
+{
+  "name": { "sv": "Mitt spel", "en": "My game" },
+  "description": { "sv": "En mening om spelet.", "en": "One sentence about the game." }
+}
 ```
 
-Laser Mouse picks it up automatically. React to `pointerdown`/click events; closing the window with `window.close()` (e.g. on Esc in the menu) returns to Laser Mouse.
+Laser Mouse picks it up automatically and opens it with `?lang=sv` or `?lang=en` – support both languages (Swedish as the default). React to `pointerdown`/click events; closing the window with `window.close()` (e.g. on Esc in the menu) returns to Laser Mouse.
 
 ### Design rules for projector + webcam
 
@@ -199,7 +221,8 @@ The camera looks at your game while it looks for the laser. Keep it easy for the
 ```js
 const guns = new Gunshots(() => audioContext);
 guns.play('shotgun'); // 'pistol', 'rifle', 'laser', 'off'
-Gunshots.types;       // [{ id, name }, …] for a picker
+Gunshots.types;       // [{ id, name: { sv, en } }, …] for a picker
+Gunshots.nameOf('shotgun', 'en'); // "Shotgun"
 ```
 
 Each shot plays in its own voice; a new shot fades the previous one out in 40 ms, so rapid fire stays crisp instead of piling up. Durations: shotgun ≈ 0.6 s (including pump action), pistol ≈ 0.45 s, rifle ≈ 0.6 s, laser ≈ 0.4 s.
@@ -218,7 +241,7 @@ Everything is stored in the renderer's `localStorage`:
 | `displayId`, `calibPoints` | Chosen display, 4/9 points |
 | `calibration:<displayId>` | Homography + camera size + point pairs |
 | `zero:<displayId>` | Zeroing offset and group size |
-| `soundEnabled`, `voiceEnabled`, `gameId` | Preferences |
+| `lang`, `soundEnabled`, `voiceEnabled`, `gameId` | Preferences (language is `sv` or `en`) |
 
 Mouse control is deliberately **not** persisted.
 

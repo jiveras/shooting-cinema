@@ -1,24 +1,24 @@
-// Ljud- och röståterkoppling, så att man kan kalibrera och skjuta
-// utan att titta på skärmen. Alla ljud syntetiseras med Web Audio –
-// inga ljudfiler behövs.
+// Sound and voice feedback, so you can calibrate and shoot without looking
+// at the screen. All sounds are synthesized with Web Audio – no audio files.
+// Speech uses the system voices in the current UI language (i18n.lang).
 
 (function () {
+  const VOICE_LANG = { sv: 'sv-SE', en: 'en-GB' };
+
   class Sounds {
     constructor() {
       this.enabled = true;
       this.voice = true;
       this._ctx = null;
-      this._tone = null; // pågående "lås"-ton
+      this._tone = null; // the "lock-on" tone in progress
       this._lastBuzz = 0;
-      this._svVoice = null;
+      this._voices = [];
       if ('speechSynthesis' in window) {
-        const pick = () => {
-          const voices = speechSynthesis.getVoices();
-          this._svVoice =
-            voices.find((v) => v.lang === 'sv-SE') || voices.find((v) => v.lang.startsWith('sv')) || null;
+        const load = () => {
+          this._voices = speechSynthesis.getVoices();
         };
-        pick();
-        speechSynthesis.addEventListener('voiceschanged', pick);
+        load();
+        speechSynthesis.addEventListener('voiceschanged', load);
       }
     }
 
@@ -28,7 +28,7 @@
       return this._ctx;
     }
 
-    // Kort ton med mjuk in-/uttoning
+    // Short tone with a soft fade in/out
     _beep(freq, start, dur, { type = 'sine', gain = 0.18 } = {}) {
       const ctx = this.ctx;
       const t = ctx.currentTime + start;
@@ -44,7 +44,7 @@
       osc.stop(t + dur + 0.02);
     }
 
-    /** Stigande ton medan lasern hålls stilla (progress 0–1). */
+    /** Rising tone while the laser is held still (progress 0–1). */
     progress(p) {
       if (!this.enabled) return;
       if (p <= 0) return this.stopProgress();
@@ -59,7 +59,7 @@
         osc.start();
         this._tone = { osc, g };
       }
-      const f = 330 * Math.pow(2, p * 1.4); // ca 330 → 870 Hz
+      const f = 330 * Math.pow(2, p * 1.4); // about 330 → 870 Hz
       this._tone.osc.frequency.setTargetAtTime(f, ctx.currentTime, 0.03);
     }
 
@@ -73,7 +73,7 @@
       this._tone = null;
     }
 
-    /** Punkt registrerad: två glada toner. */
+    /** Point captured: two cheerful notes. */
     captured() {
       this.stopProgress();
       if (!this.enabled) return;
@@ -81,7 +81,7 @@
       this._beep(1320, 0.1, 0.22);
     }
 
-    /** Lasern står kvar på en redan registrerad punkt. */
+    /** The laser is still on a point that has already been captured. */
     tooClose() {
       if (!this.enabled) return;
       const now = performance.now();
@@ -97,14 +97,14 @@
       this._beep(660, 0, 0.15);
     }
 
-    /** Kalibrering klar: stigande treklang. */
+    /** Calibration done: a rising arpeggio. */
     done() {
       this.stopProgress();
       if (!this.enabled) return;
       [523, 659, 784, 1047].forEach((f, i) => this._beep(f, i * 0.11, 0.3));
     }
 
-    /** Skott i testläget: kort "pang" av filtrerat brus. */
+    /** Shot in test mode: a short "bang" of filtered noise. */
     shot() {
       if (!this.enabled) return;
       const ctx = this.ctx;
@@ -123,13 +123,25 @@
       src.start();
     }
 
-    /** Säg något på svenska (avbryter pågående tal). */
+    /** Pick a system voice for the current language (prefer the exact locale). */
+    _voiceFor(lang) {
+      const locale = VOICE_LANG[lang] || lang;
+      return (
+        this._voices.find((v) => v.lang === locale) ||
+        this._voices.find((v) => v.lang.replace('_', '-').startsWith(lang)) ||
+        null
+      );
+    }
+
+    /** Speak a text in the current UI language (interrupts ongoing speech). */
     say(text) {
       if (!this.voice || !('speechSynthesis' in window)) return;
+      const lang = (window.i18n && window.i18n.lang) || 'sv';
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'sv-SE';
-      if (this._svVoice) u.voice = this._svVoice;
+      u.lang = VOICE_LANG[lang] || lang;
+      const voice = this._voiceFor(lang);
+      if (voice) u.voice = voice;
       u.rate = 1.05;
       speechSynthesis.speak(u);
     }

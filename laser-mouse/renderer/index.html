@@ -14,18 +14,18 @@
       <div class="brand">
         <span class="dot" aria-hidden="true"></span>
         Laser Mouse
-        <span class="stage">Etapp 4 · Musklick</span>
+        <span class="stage" data-i18n="app.tagline">Laser → musklick</span>
       </div>
 
       <label>
-        Kamera
+        <span data-i18n="toolbar.camera">Kamera</span>
         <select id="camera-select" disabled>
-          <option>Söker kameror…</option>
+          <option data-i18n="toolbar.searchingCameras">Söker kameror…</option>
         </select>
       </label>
 
       <label>
-        Upplösning
+        <span data-i18n="toolbar.resolution">Upplösning</span>
         <select id="resolution-select">
           <option value="640x480">640 × 480</option>
           <option value="1280x720" selected>1280 × 720</option>
@@ -33,13 +33,21 @@
         </select>
       </label>
 
-      <button id="toggle-button" type="button">Stoppa</button>
+      <button id="toggle-button" type="button" data-i18n="toolbar.stop">Stoppa</button>
+
+      <label>
+        <span data-i18n="toolbar.language">Språk</span>
+        <select id="lang-select">
+          <option value="sv">Svenska</option>
+          <option value="en">English</option>
+        </select>
+      </label>
     </header>
 
     <div class="workspace">
       <main class="stage-area">
-        <!-- Videon hålls dold; vi ritar varje bildruta på canvasen
-             och laserdetekteringen läser canvasens pixlar. -->
+        <!-- The video element stays hidden; every frame is drawn onto the canvas
+             and the laser detection reads the canvas pixels. -->
         <video id="video" playsinline muted></video>
         <canvas id="canvas"></canvas>
         <div id="message" class="message" hidden></div>
@@ -47,123 +55,123 @@
 
       <aside class="panel">
         <section>
-          <h2>Skärm &amp; kalibrering</h2>
-          <label class="field">Skärm
+          <h2 data-i18n="calib.title">Skärm &amp; kalibrering</h2>
+          <label class="field"><span data-i18n="calib.display">Skärm</span>
             <select id="display-select"></select>
           </label>
-          <label class="field">Kalibreringspunkter
+          <label class="field"><span data-i18n="calib.points">Kalibreringspunkter</span>
             <select id="points-select">
-              <option value="4">4 punkter (snabbt)</option>
-              <option value="9">9 punkter (noggrannare)</option>
+              <option value="4" data-i18n="calib.points4">4 punkter (snabbt)</option>
+              <option value="9" data-i18n="calib.points9">9 punkter (noggrannare)</option>
             </select>
           </label>
           <div class="button-row">
-            <button id="calibrate-button" type="button">Kalibrera</button>
+            <button id="calibrate-button" type="button" data-i18n="calib.calibrate">Kalibrera</button>
             <button id="test-button" type="button">Testa</button>
-            <button id="stop-button" type="button">Stäng</button>
+            <button id="stop-button" type="button" data-i18n="calib.close">Stäng</button>
           </div>
           <div class="check-row">
-            <label class="check"><input type="checkbox" id="sound-enabled" /> Ljud</label>
-            <label class="check"><input type="checkbox" id="voice-enabled" /> Röst</label>
+            <label class="check"><input type="checkbox" id="sound-enabled" /> <span data-i18n="calib.sound">Ljud</span></label>
+            <label class="check"><input type="checkbox" id="voice-enabled" /> <span data-i18n="calib.voice">Röst</span></label>
           </div>
-          <div id="calib-status" class="calib-status">Inte kalibrerad</div>
-          <small>Kameran ska se skärmen du kalibrerar. Håll lasern stilla på varje punkt tills ringen fylls. Esc avbryter.</small>
+          <div id="calib-status" class="calib-status"></div>
+          <small data-i18n="calib.help"></small>
         </section>
 
         <section>
-          <h2>Inskjutning</h2>
-          <small>Lasern sitter inte exakt i siktlinjen. Sikta med kornet mitt på målet som visas och skjut fem skott – appen flyttar sedan alla träffar så att de hamnar där du siktade. Gör om om du flyttar lasern eller ditt skjutavstånd.</small>
+          <h2 data-i18n="zero.title">Inskjutning</h2>
+          <small data-i18n="zero.help"></small>
           <div class="button-row two">
-            <button id="zero-button" type="button">Inskjutning</button>
-            <button id="zero-reset" type="button">Nollställ</button>
+            <button id="zero-button" type="button" data-i18n="zero.start">Inskjutning</button>
+            <button id="zero-reset" type="button" data-i18n="zero.reset">Nollställ</button>
           </div>
-          <div id="zero-status" class="calib-status">Ingen inskjutning</div>
+          <div id="zero-status" class="calib-status"></div>
         </section>
 
         <section class="mouse-section">
-          <h2>Riktiga musklick</h2>
-          <label class="check danger"><input type="checkbox" id="mouse-click" /> Klicka vid skott</label>
-          <label class="check"><input type="checkbox" id="mouse-follow" /> Muspekaren följer lasern</label>
-          <div id="mouse-status" class="calib-status">Av</div>
-          <small>Skott = lasern tänds efter att ha varit släckt. Nödstopp: <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>L</kbd> (fungerar även när en annan app har fokus).</small>
+          <h2 data-i18n="mouse.title">Riktiga musklick</h2>
+          <label class="check danger"><input type="checkbox" id="mouse-click" /> <span data-i18n="mouse.click">Klicka vid skott</span></label>
+          <label class="check"><input type="checkbox" id="mouse-follow" /> <span data-i18n="mouse.follow">Muspekaren följer lasern</span></label>
+          <div id="mouse-status" class="calib-status"></div>
+          <small data-i18n-html="mouse.help"></small>
         </section>
 
         <section>
-          <h2>Spel</h2>
-          <label class="field">Välj spel
+          <h2 data-i18n="games.title">Spel</h2>
+          <label class="field"><span data-i18n="games.choose">Välj spel</span>
             <select id="game-select"></select>
           </label>
           <small id="game-desc"></small>
           <div class="button-row two">
-            <button id="game-start" type="button">Starta på vald skärm</button>
-            <button id="game-stop" type="button">Stäng</button>
+            <button id="game-start" type="button" data-i18n="games.start">Starta på vald skärm</button>
+            <button id="game-stop" type="button" data-i18n="games.close">Stäng</button>
           </div>
         </section>
 
         <section class="readout">
-          <div class="readout-state" id="laser-state">Ingen laser</div>
+          <div class="readout-state" id="laser-state"></div>
           <dl>
-            <dt>Kameraposition</dt><dd id="laser-pos">–</dd>
-            <dt>Skärmposition</dt><dd id="screen-pos">–</dd>
-            <dt>Klumpstorlek</dt><dd id="laser-pixels">–</dd>
-            <dt>Kontrast</dt><dd id="laser-contrast">–</dd>
-            <dt>Laserpixlar totalt</dt><dd id="laser-total">–</dd>
-            <dt>Skott</dt><dd id="shot-count">0</dd>
+            <dt data-i18n="readout.camPos">Kameraposition</dt><dd id="laser-pos">–</dd>
+            <dt data-i18n="readout.screenPos">Skärmposition</dt><dd id="screen-pos">–</dd>
+            <dt data-i18n="readout.blob">Klumpstorlek</dt><dd id="laser-pixels">–</dd>
+            <dt data-i18n="readout.contrast">Kontrast</dt><dd id="laser-contrast">–</dd>
+            <dt data-i18n="readout.total">Laserpixlar totalt</dt><dd id="laser-total">–</dd>
+            <dt data-i18n="readout.shots">Skott</dt><dd id="shot-count">0</dd>
           </dl>
-          <button id="reset-shots" type="button">Nollställ skott</button>
+          <button id="reset-shots" type="button" data-i18n="readout.resetShots">Nollställ skott</button>
         </section>
 
         <section>
-          <h2>Känslighet</h2>
+          <h2 data-i18n="sens.title">Känslighet</h2>
           <div class="slider">
-            <label for="minContrast">Kontrast mot omgivning <output data-for="minContrast"></output></label>
+            <label for="minContrast"><span data-i18n="sens.minContrast">Kontrast mot omgivning</span> <output data-for="minContrast"></output></label>
             <input type="range" id="minContrast" min="5" max="200" step="1" />
-            <small>Viktigaste reglaget. Hur mycket ljusare pricken måste vara än allt runt den. Höj om annat triggar, sänk om lasern tappas.</small>
+            <small data-i18n="sens.minContrastHelp"></small>
           </div>
           <div class="slider">
-            <label for="minBrightness">Ljusstyrka (röd) <output data-for="minBrightness"></output></label>
+            <label for="minBrightness"><span data-i18n="sens.minBrightness">Ljusstyrka (röd)</span> <output data-for="minBrightness"></output></label>
             <input type="range" id="minBrightness" min="30" max="255" step="1" />
-            <small>Minsta ljusstyrka i röd kanal.</small>
+            <small data-i18n="sens.minBrightnessHelp"></small>
           </div>
           <div class="slider">
-            <label for="minWarmth">Rödhet <output data-for="minWarmth"></output></label>
+            <label for="minWarmth"><span data-i18n="sens.minWarmth">Rödhet</span> <output data-for="minWarmth"></output></label>
             <input type="range" id="minWarmth" min="-50" max="150" step="1" />
-            <small>Röd minus blå. Höj för att utesluta vita reflexer.</small>
+            <small data-i18n="sens.minWarmthHelp"></small>
           </div>
           <div class="slider">
-            <label for="ringRadius">Ringradie <output data-for="ringRadius"></output></label>
+            <label for="ringRadius"><span data-i18n="sens.ringRadius">Ringradie</span> <output data-for="ringRadius"></output></label>
             <input type="range" id="ringRadius" min="3" max="40" step="1" />
-            <small>Hur långt ut vi jämför. Ska vara större än pricken.</small>
+            <small data-i18n="sens.ringRadiusHelp"></small>
           </div>
           <div class="slider">
-            <label for="minPixels">Min klumpstorlek <output data-for="minPixels"></output></label>
+            <label for="minPixels"><span data-i18n="sens.minPixels">Min klumpstorlek</span> <output data-for="minPixels"></output></label>
             <input type="range" id="minPixels" min="1" max="100" step="1" />
           </div>
           <div class="slider">
-            <label for="maxPixels">Max klumpstorlek <output data-for="maxPixels"></output></label>
+            <label for="maxPixels"><span data-i18n="sens.maxPixels">Max klumpstorlek</span> <output data-for="maxPixels"></output></label>
             <input type="range" id="maxPixels" min="20" max="5000" step="10" />
           </div>
         </section>
 
         <section>
-          <h2>Visning</h2>
-          <label class="check"><input type="checkbox" id="showMask" /> Visa mask (laserpixlar i grönt)</label>
-          <button id="reset-settings" type="button">Återställ standardvärden</button>
+          <h2 data-i18n="view.title">Visning</h2>
+          <label class="check"><input type="checkbox" id="showMask" /> <span data-i18n="view.mask">Visa mask (laserpixlar i grönt)</span></label>
+          <button id="reset-settings" type="button" data-i18n="view.reset">Återställ standardvärden</button>
         </section>
 
         <section>
-          <h2>Fasta prickar</h2>
-          <small>Lysdioder, reflexer eller lampor som syns som ljusa prickar. Släck lasern och tryck – appen tittar i 2 sekunder och ignorerar sedan de prickar den såg. Lasern själv ignoreras aldrig, hur länge du än håller still.</small>
+          <h2 data-i18n="spots.title">Fasta prickar</h2>
+          <small data-i18n="spots.help"></small>
           <div class="button-row two">
-            <button id="learn-spots" type="button">Lär in fasta prickar</button>
-            <button id="clear-spots" type="button">Rensa</button>
+            <button id="learn-spots" type="button" data-i18n="spots.learn">Lär in fasta prickar</button>
+            <button id="clear-spots" type="button" data-i18n="spots.clear">Rensa</button>
           </div>
-          <div id="spots-status" class="calib-status">Inga ignoreras</div>
+          <div id="spots-status" class="calib-status"></div>
         </section>
 
         <section id="exposure-section">
-          <h2>Kameraexponering</h2>
-          <div id="exposure-controls"><small>Startar kameran…</small></div>
+          <h2 data-i18n="exposure.title">Kameraexponering</h2>
+          <div id="exposure-controls"><small data-i18n="exposure.starting">Startar kameran…</small></div>
         </section>
       </aside>
     </div>
@@ -175,6 +183,7 @@
       <span id="status-versions"></span>
     </footer>
 
+    <script src="i18n.js"></script>
     <script src="camera.js"></script>
     <script src="laser-detect.js"></script>
     <script src="overlay.js"></script>

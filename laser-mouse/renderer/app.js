@@ -1,4 +1,4 @@
-// Kopplar ihop gränssnittet med kameran.
+// Wires the user interface to the camera, the detector and the screen control.
 
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -10,22 +10,28 @@
   const statusFps = $('status-fps');
   const statusVersions = $('status-versions');
 
-  const camera = new window.LaserCamera($('video'), $('canvas'));
-
   const store = {
     get(key) {
       try { return localStorage.getItem(key); } catch { return null; }
     },
     set(key, value) {
-      try { localStorage.setItem(key, value); } catch { /* ignorera */ }
+      try { localStorage.setItem(key, value); } catch { /* ignore */ }
     },
   };
 
-  // ---- Etapp 2: laserdetektering ----
+  // ---- Language (Swedish by default) ----
+  i18n.init(store);
+  i18n.apply();
+  const langSelect = $('lang-select');
+  langSelect.value = i18n.lang;
+  langSelect.addEventListener('change', () => i18n.set(langSelect.value));
+
+  const camera = new window.LaserCamera($('video'), $('canvas'));
+
+  // ---- Laser detection ----
 
   const SETTINGS_KEY = 'detectorSettings.v2';
   const sliderIds = ['minContrast', 'minBrightness', 'minWarmth', 'ringRadius', 'minPixels', 'maxPixels'];
-  const checkIds = [];
 
   function loadSettings() {
     try {
@@ -44,7 +50,6 @@
       $(id).value = detector.settings[id];
       document.querySelector(`output[data-for="${id}"]`).textContent = detector.settings[id];
     }
-    for (const id of checkIds) $(id).checked = !!detector.settings[id];
   }
 
   function saveSettings() {
@@ -58,12 +63,6 @@
       saveSettings();
     });
   }
-  for (const id of checkIds) {
-    $(id).addEventListener('change', (e) => {
-      detector.update({ [id]: e.target.checked });
-      saveSettings();
-    });
-  }
   showMask.addEventListener('change', () => store.set('showMask', showMask.checked ? '1' : '0'));
   $('reset-settings').addEventListener('click', () => {
     detector.update(window.LaserDetector.defaults);
@@ -72,8 +71,8 @@
   });
   syncControls();
 
-  // Skott = lasern dyker upp efter att ha varit borta några bildrutor.
-  // (Tänkt för vapenattrappen som blinkar lasern vid avtryck.)
+  // A shot = the laser appears after being absent for a few frames
+  // (a laser training cartridge flashes when the firing pin strikes).
   const MIN_GAP_FRAMES = 3;
   const shotList = [];
   let present = false;
@@ -87,38 +86,46 @@
     shotCount = 0;
   });
 
-  // ---- Etapp 3: skärm och kalibrering ----
+  // ---- Display, calibration, zeroing and mouse control ----
   const screenControl = new window.ScreenControl({ $, store, camera });
 
-  // ---- Spel ----
+  // ---- Games ----
   const gameSelect = $('game-select');
   let games = [];
   let gameOpen = false;
-  function syncGameUi() {
-    const g = games.find((x) => x.id === gameSelect.value);
-    $('game-desc').textContent = g ? g.description : 'Inga spel hittades i games/.';
-    $('game-start').disabled = !g;
-    $('game-stop').disabled = !gameOpen;
-  }
-  async function loadGames() {
-    games = (await window.laserMouse.listGames?.()) || [];
+
+  function renderGames() {
+    const selected = gameSelect.value || store.get('gameId');
     gameSelect.innerHTML = '';
     for (const g of games) {
       const opt = document.createElement('option');
       opt.value = g.id;
-      opt.textContent = g.name;
+      opt.textContent = i18n.pick(g.name);
       gameSelect.appendChild(opt);
     }
-    const saved = store.get('gameId');
-    if (saved && games.some((g) => g.id === saved)) gameSelect.value = saved;
+    if (selected && games.some((g) => g.id === selected)) gameSelect.value = selected;
     syncGameUi();
   }
+
+  function syncGameUi() {
+    const g = games.find((x) => x.id === gameSelect.value);
+    $('game-desc').textContent = g ? i18n.pick(g.description) : t('games.none');
+    $('game-start').disabled = !g;
+    $('game-stop').disabled = !gameOpen;
+  }
+
+  async function loadGames() {
+    games = (await window.laserMouse.listGames?.()) || [];
+    renderGames();
+  }
+
   gameSelect.addEventListener('change', () => {
     store.set('gameId', gameSelect.value);
     syncGameUi();
   });
   $('game-start').addEventListener('click', async () => {
-    const res = await window.laserMouse.openGame(gameSelect.value, screenControl.display?.id);
+    // The game opens in the same language as Laser Mouse
+    const res = await window.laserMouse.openGame(gameSelect.value, screenControl.display?.id, i18n.lang);
     gameOpen = !!res?.ok;
     syncGameUi();
   });
@@ -128,15 +135,15 @@
     syncGameUi();
   });
 
-  // ---- Fasta prickar (ignorera-zoner) ----
+  // ---- Static spots (ignore zones) ----
   const spots = new window.StaticSpots({ store, detector });
   const spotsStatus = $('spots-status');
   spots.onChange = () => {
     const n = spots.zones.length;
     if (spots.learning) {
-      spotsStatus.textContent = 'Lär in… håll lasern släckt';
+      spotsStatus.textContent = t('spots.learning');
     } else {
-      spotsStatus.textContent = n === 0 ? 'Inga ignoreras' : `${n} ${n === 1 ? 'prick' : 'prickar'} ignoreras`;
+      spotsStatus.textContent = n === 0 ? t('spots.none') : n === 1 ? t('spots.one') : t('spots.many', { n });
     }
     spotsStatus.classList.toggle('ok', n > 0 && !spots.learning);
     $('learn-spots').disabled = !!spots.learning;
@@ -150,6 +157,7 @@
   $('clear-spots').addEventListener('click', () => spots.clear());
   spots.onChange();
 
+  // ---- Per frame ----
   camera.onFrame((ctx, w, h) => {
     spots.setSize(w, h);
     const t0 = performance.now();
@@ -158,12 +166,12 @@
     if (showMask.checked) ctx.putImageData(img, 0, 0);
     detectMs = detectMs * 0.9 + (performance.now() - t0) * 0.1;
 
-    // Under inlärning används ingen träff alls (lasern ska vara släckt).
+    // While learning static spots, no hit is used at all (the laser should be off).
     if (spots.learning) {
       if (spots.feed(result)) {
         screenControl.sounds.captured();
         const a = spots.lastAdded;
-        screenControl.sounds.say(a === 0 ? 'Inga nya prickar' : `${a} ${a === 1 ? 'prick' : 'prickar'} ignoreras`);
+        screenControl.sounds.say(a === 0 ? t('say.spotsNone') : a === 1 ? t('say.spotsOne') : t('say.spotsMany', { n: a }));
       }
       spots.draw(ctx);
       return;
@@ -192,10 +200,10 @@
     last = result;
   });
 
-  // Uppdatera panelen i lugnare takt än bildfrekvensen.
+  // Update the panel at a calmer pace than the frame rate.
   setInterval(() => {
     const state = $('laser-state');
-    state.textContent = last.found ? 'Laser hittad' : 'Ingen laser';
+    state.textContent = last.found ? t('laser.found') : t('laser.none');
     state.classList.toggle('on', last.found);
     $('laser-pos').textContent = last.found ? `${Math.round(last.x)}, ${Math.round(last.y)}` : '–';
     $('laser-pixels').textContent = last.pixels ? last.pixels : '–';
@@ -203,12 +211,12 @@
     $('laser-total').textContent = last.total;
     $('shot-count').textContent = shotCount;
     $('screen-pos').textContent = screenControl.screenReadout();
-    $('status-detect').textContent = camera.running ? `detektering ${detectMs.toFixed(1)} ms` : '– ms';
+    $('status-detect').textContent = camera.running ? t('status.detect', { ms: detectMs.toFixed(1) }) : '– ms';
   }, 100);
 
-  // ---- Kameraexponering (om kameran stöder det) ----
-  // Kortare exponering = mörkare bild men laserpricken blåses inte ut,
-  // och allt annat försvinner. Stöds inte av alla kameror/plattformar.
+  // ---- Camera exposure (if the camera supports it) ----
+  // A shorter exposure gives a darker image, but the laser dot doesn't bloom
+  // and everything else fades away. Not every camera/platform supports it.
   function buildExposureControls() {
     const host = $('exposure-controls');
     host.innerHTML = '';
@@ -242,34 +250,48 @@
     if (caps.exposureMode && caps.exposureMode.includes('manual') && caps.exposureTime) {
       const auto = document.createElement('label');
       auto.className = 'check';
-      auto.innerHTML = '<input type="checkbox" checked /> Automatisk exponering';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      auto.append(box, ' ', t('exposure.auto'));
       host.appendChild(auto);
-      const box = auto.querySelector('input');
       box.checked = settings.exposureMode !== 'manual';
       box.addEventListener('change', () =>
         camera.apply({ exposureMode: box.checked ? 'continuous' : 'manual' }).catch(console.warn)
       );
-      addSlider('exposureTime', 'Exponeringstid', caps.exposureTime, settings.exposureTime ?? caps.exposureTime.max,
+      addSlider('exposureTime', t('exposure.time'), caps.exposureTime, settings.exposureTime ?? caps.exposureTime.max,
         (v) => { box.checked = false; return camera.apply({ exposureMode: 'manual', exposureTime: v }); });
     }
     if (caps.exposureCompensation) {
-      addSlider('exposureCompensation', 'Exponeringskompensation', caps.exposureCompensation,
+      addSlider('exposureCompensation', t('exposure.compensation'), caps.exposureCompensation,
         settings.exposureCompensation ?? 0, (v) => camera.apply({ exposureCompensation: v }));
     }
     if (caps.brightness) {
-      addSlider('brightness', 'Ljushet', caps.brightness, settings.brightness ?? caps.brightness.min,
+      addSlider('brightness', t('exposure.brightness'), caps.brightness, settings.brightness ?? caps.brightness.min,
         (v) => camera.apply({ brightness: v }));
     }
 
     if (parts.length === 0) {
-      host.innerHTML = '<small>Din kamera/plattform låter inte appen styra exponeringen. ' +
-        'Det löser sig med bandpassfiltret, eller med ett verktyg för kamerainställningar.</small>';
+      const small = document.createElement('small');
+      small.textContent = t('exposure.unsupported');
+      host.appendChild(small);
     }
   }
 
-  function showMessage(text) {
-    message.textContent = text;
-    message.hidden = !text;
+  // ---- Camera ----
+
+  // The message over the camera view is stored as a key so it can be re-translated.
+  let messageState = null;
+  function showMessage(key, params) {
+    messageState = key ? { key, params } : null;
+    renderMessage();
+  }
+  function renderMessage() {
+    message.textContent = messageState ? t(messageState.key, messageState.params) : '';
+    message.hidden = !messageState;
+  }
+
+  function renderToggle() {
+    toggleButton.textContent = t(camera.running ? 'toolbar.stop' : 'toolbar.start');
   }
 
   function selectedResolution() {
@@ -277,49 +299,51 @@
     return { width, height };
   }
 
+  let cameraList = [];
   async function populateCameras(activeId) {
-    const cameras = await window.LaserCamera.listCameras();
+    cameraList = await window.LaserCamera.listCameras();
+    renderCameraOptions(activeId);
+    cameraSelect.disabled = cameraList.length === 0;
+    return cameraList;
+  }
+
+  function renderCameraOptions(activeId = cameraSelect.value) {
     cameraSelect.innerHTML = '';
-    cameras.forEach((cam, i) => {
+    cameraList.forEach((cam, i) => {
       const opt = document.createElement('option');
       opt.value = cam.deviceId;
-      opt.textContent = cam.label || `Kamera ${i + 1}`;
+      opt.textContent = cam.label || t('camera.fallbackName', { n: i + 1 });
       cameraSelect.appendChild(opt);
     });
     if (activeId) cameraSelect.value = activeId;
-    cameraSelect.disabled = cameras.length === 0;
-    return cameras;
   }
 
   async function startCamera(deviceId) {
-    showMessage('Startar kameran…');
+    showMessage('camera.starting');
     try {
       const info = await camera.start({ deviceId, ...selectedResolution() });
       store.set('cameraId', info.deviceId || '');
       store.set('resolution', resolutionSelect.value);
       statusResolution.textContent = `${info.width} × ${info.height}`;
-      toggleButton.textContent = 'Stoppa';
-      showMessage('');
+      renderToggle();
+      showMessage(null);
       buildExposureControls();
       return info;
     } catch (err) {
       console.error(err);
-      toggleButton.textContent = 'Starta';
+      renderToggle();
       if (err.name === 'NotAllowedError') {
-        showMessage(
-          'Appen fick inte använda kameran. På Mac: Systeminställningar → ' +
-            'Integritet och säkerhet → Kamera, slå på för Electron/Terminal och starta om.'
-        );
+        showMessage('camera.denied');
       } else if (err.name === 'NotFoundError' || err.name === 'OverconstrainedError') {
-        showMessage('Hittade ingen kamera som matchar. Testa en annan kamera eller upplösning.');
+        showMessage('camera.notFound');
       } else {
-        showMessage(`Kunde inte starta kameran: ${err.message}`);
+        showMessage('camera.failed', { msg: err.message });
       }
       return null;
     }
   }
 
-  // Uppdatera fps i statusraden.
+  // Frame rate in the status bar.
   setInterval(() => {
     statusFps.textContent = camera.running ? `${camera.fps.toFixed(1)} fps` : '– fps';
   }, 500);
@@ -329,16 +353,26 @@
   toggleButton.addEventListener('click', () => {
     if (camera.running) {
       camera.stop();
-      toggleButton.textContent = 'Starta';
+      renderToggle();
       statusResolution.textContent = '–';
     } else {
       startCamera(cameraSelect.value);
     }
   });
 
-  // Byt kamera automatiskt om man kopplar in/ur en webbkamera.
+  // Refresh the camera list when a webcam is plugged in or out.
   navigator.mediaDevices.addEventListener('devicechange', () => {
     populateCameras(cameraSelect.value).catch(console.error);
+  });
+
+  // ---- Language change: re-render everything built in code ----
+  i18n.onChange(() => {
+    renderToggle();
+    renderMessage();
+    renderCameraOptions();
+    renderGames();
+    spots.onChange();
+    if (camera.running) buildExposureControls();
   });
 
   async function init() {
@@ -348,14 +382,14 @@
     const savedRes = store.get('resolution');
     if (savedRes) resolutionSelect.value = savedRes;
 
-    // Starta först med sparad (eller standard-)kamera för att få tillstånd –
-    // då blir kameranamnen läsbara i listan.
+    // Start with the saved (or default) camera first to get permission –
+    // only then do the camera names become readable in the list.
     const savedId = store.get('cameraId') || undefined;
     let info = await startCamera(savedId);
     if (!info && savedId) info = await startCamera(undefined);
 
     const cameras = await populateCameras(info?.deviceId);
-    if (cameras.length === 0) showMessage('Ingen webbkamera hittades.');
+    if (cameras.length === 0) showMessage('camera.none');
 
     await screenControl.init();
     await loadGames();

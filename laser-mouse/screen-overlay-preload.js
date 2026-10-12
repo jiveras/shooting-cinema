@@ -1,4 +1,4 @@
-// Brygga för överläggsfönstret: tar bara emot meddelanden.
+// Bridge for the overlay window: it only receives messages.
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('overlayBridge', {

@@ -1,15 +1,15 @@
-// Etapp 1: webbkameran in, bildrutor ut på en canvas.
+// Webcam in, frames out on a canvas.
 //
-// Kameran ritas på canvasen varje bildruta. Den som vill titta på
-// pixlarna (etapp 2: laserdetektering) registrerar en onFrame-callback
-// och får canvasens 2D-kontext, bredd och höjd.
+// The camera is drawn onto the canvas every frame. Anything that wants to
+// look at the pixels (the laser detection) registers an onFrame callback and
+// gets the canvas 2D context, width and height.
 
 (function () {
   class LaserCamera {
     constructor(video, canvas) {
       this.video = video;
       this.canvas = canvas;
-      // willReadFrequently: vi kommer läsa pixlar varje bildruta i etapp 2.
+      // willReadFrequently: we read the pixels on every frame.
       this.ctx = canvas.getContext('2d', { willReadFrequently: true });
       this.stream = null;
       this.running = false;
@@ -20,7 +20,7 @@
       this._loop = this._loop.bind(this);
     }
 
-    /** Listar videoingångar. Namnen syns först när kameratillstånd givits. */
+    /** Lists video inputs. The names only show once camera permission is granted. */
     static async listCameras() {
       const devices = await navigator.mediaDevices.enumerateDevices();
       return devices.filter((d) => d.kind === 'videoinput');
@@ -61,7 +61,7 @@
       };
     }
 
-    /** Vad kameran tillåter att man ställer in (exponering m.m.). */
+    /** What the camera lets you adjust (exposure etc.). */
     capabilities() {
       const track = this.stream?.getVideoTracks()[0];
       return track && track.getCapabilities ? track.getCapabilities() : {};
@@ -89,8 +89,8 @@
 
     _scheduleNext() {
       if (!this.running) return;
-      // requestVideoFrameCallback triggar exakt när kameran levererat en ny
-      // bildruta – bättre än requestAnimationFrame som kör i skärmens takt.
+      // requestVideoFrameCallback fires exactly when the camera has delivered a new
+      // frame – better than requestAnimationFrame, which runs at the display rate.
       if ('requestVideoFrameCallback' in this.video) {
         this.video.requestVideoFrameCallback(this._loop);
       } else {

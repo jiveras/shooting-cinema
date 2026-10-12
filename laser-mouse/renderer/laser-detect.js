@@ -1,35 +1,35 @@
-// Etapp 2: hitta laserpricken i en bildruta.
+// Find the laser dot in a frame.
 //
-// Princip – "punktdetektor":
-// En laserprick är en LITEN punkt som är MYCKET ljusare än allt runt omkring,
-// åt alla håll. Ett ansikte, en lampa eller en röd tröja är stora och jämnt
-// ljusa inuti – och en kant (t.ex. kind mot hår) har ljust på ena sidan.
+// Principle – a "point detector":
+// A laser dot is a SMALL spot that is MUCH brighter than everything around it,
+// in every direction. A face, a lamp or a red shirt is large and evenly bright
+// inside – and an edge (e.g. a cheek against hair) is bright on one side only.
 //
-//  1. Förfilter: pixeln måste vara ljus i röd kanal och inte blåstickig.
-//  2. Ringtest: vi tittar på 8 punkter i en ring runt pixeln (radie R).
-//     Pixeln måste vara minst `minContrast` ljusare än den LJUSASTE av dem.
-//     Då faller stora ljusa ytor och kanter bort – bara riktiga punkter kvar.
-//  3. Träffpixlar grupperas i klumpar (8×8-celler + flood fill).
-//     För små/stora klumpar sorteras bort.
-//  4. Klumpar inom en inlärd "ignorera"-zon (fasta prickar: lysdioder,
-//     reflexer, lampor) hoppas över.
-//  5. Av återstående klumpar väljs den med högst kontrast; dess tyngdpunkt
-//     är laserns position (med decimalprecision).
+//  1. Pre-filter: the pixel must be bright in the red channel and not bluish.
+//  2. Ring test: look at 8 points on a ring around the pixel (radius R).
+//     The pixel must be at least `minContrast` brighter than the BRIGHTEST of them.
+//     Large bright areas and edges fail – only real points remain.
+//  3. Hit pixels are grouped into blobs (8×8 cells + flood fill).
+//     Blobs that are too small or too large are dropped.
+//  4. Blobs inside a learned "ignore" zone (static spots: LEDs, reflections,
+//     lamps) are skipped.
+//  5. Of the remaining blobs, the one with the highest contrast wins; its
+//     centroid is the laser position (with sub-pixel precision).
 //
-// Med 650 nm-filter framför linsen blir detta nästan trivialt.
+// With a 650 nm filter in front of the lens this becomes almost trivial.
 
 (function () {
   const DEFAULTS = {
-    minBrightness: 170, // minsta värde i röd kanal (0–255)
-    minContrast: 50, // hur mycket ljusare än omgivningen (ringen)
-    minWarmth: 5, // röd minus blå – utesluter blåvita reflexer
-    ringRadius: 12, // ringens radie i px; ska vara större än pricken
+    minBrightness: 170, // minimum value in the red channel (0–255)
+    minContrast: 50, // how much brighter than the surroundings (the ring)
+    minWarmth: 5, // red minus blue – excludes bluish-white reflections
+    ringRadius: 12, // ring radius in px; must be larger than the dot
     minPixels: 2,
     maxPixels: 1500,
   };
 
   const CELL = 8;
-  // 8 riktningar runt pixeln
+  // 8 directions around the pixel
   const DIRS = [
     [1, 0], [0.7071, 0.7071], [0, 1], [-0.7071, 0.7071],
     [-1, 0], [-0.7071, -0.7071], [0, -1], [0.7071, -0.7071],
@@ -41,7 +41,7 @@
       this._w = 0;
       this._h = 0;
       this._ringRadius = -1;
-      this.ignoreZones = []; // [{x, y, r}] i kamerapixlar
+      this.ignoreZones = []; // [{x, y, r}] in camera pixels
     }
 
     static get defaults() {
@@ -68,7 +68,7 @@
     }
 
     _buildRing(R, w) {
-      // Förberäknade index-offset (i pixlar) för ringens 8 punkter
+      // Precomputed index offsets (in pixels) for the ring's 8 points
       this._ringDX = new Int32Array(8);
       this._ringDY = new Int32Array(8);
       this._ringOff = new Int32Array(8);
@@ -83,8 +83,8 @@
     }
 
     /**
-     * @param {ImageData} img  bildrutan; ändras om paintMask är true
-     * @param {boolean} paintMask  färga laserpixlar gröna (för felsökning)
+     * @param {ImageData} img  the frame; modified if paintMask is true
+     * @param {boolean} paintMask  paint laser pixels green (for debugging)
      */
     detect(img, paintMask = false) {
       const { width: w, height: h, data: d } = img;
@@ -110,7 +110,7 @@
       const minW = s.minWarmth;
       let total = 0;
 
-      // Hoppa över kanten där ringen skulle hamna utanför bilden
+      // Skip the border where the ring would fall outside the image
       for (let y = R; y < h - R; y++) {
         const rowCell = ((y / CELL) | 0) * cols;
         let p = (y * w + R) * 4;
@@ -119,7 +119,7 @@
           if (r < minB) continue;
           if (r - d[p + 2] < minW) continue;
 
-          // Ringtest: ljusaste punkten i ringen (max av r,g,b-medel ≈ r räcker)
+          // Ring test: the brightest point on the ring (the red channel is enough)
           let ringMax = 0;
           for (let k = 0; k < 8; k++) {
             const v = d[p + ringOff[k]];
@@ -141,14 +141,14 @@
 
       if (total === 0) return { found: false, x: 0, y: 0, pixels: 0, total, contrast: 0, blobs: [] };
 
-      // Gruppera intilliggande celler till klumpar
+      // Group adjacent cells into blobs
       const rows = this._rows;
       const visited = this._visited;
       const stack = this._stack;
       visited.fill(0);
 
       let best = null;
-      const blobs = []; // alla klumpar av rätt storlek (för inlärning av fasta prickar)
+      const blobs = []; // all blobs of the right size (for learning static spots)
       const zones = this.ignoreZones;
       for (let start = 0; start < count.length; start++) {
         if (count[start] === 0 || visited[start]) continue;
@@ -193,7 +193,7 @@
       return out;
     }
 
-    // Separat pass för masken, så att färgningen inte stör ringtestet.
+    // Separate pass for the mask, so the painting doesn't disturb the ring test.
     _paint(d, w, h, R, minB, minC, minW) {
       const ringOff = this._ringOff;
       const hits = [];

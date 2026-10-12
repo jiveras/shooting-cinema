@@ -1,5 +1,5 @@
-// Bryggan mellan huvudfönstrets renderer och main-processen.
-// Exponerar bara det renderern uttryckligen behöver – inget Node-API läcker ut.
+// The bridge between the main window's renderer and the main process.
+// Exposes only what the renderer explicitly needs – no Node API leaks through.
 
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -11,26 +11,26 @@ contextBridge.exposeInMainWorld('laserMouse', {
     node: process.versions.node,
   },
 
-  // Skärmar
+  // Displays
   listDisplays: () => ipcRenderer.invoke('displays:list'),
   onDisplaysChanged: (cb) => ipcRenderer.on('displays:changed', () => cb()),
 
-  // Överläggsfönstret på vald skärm
+  // The overlay window on the chosen display
   openOverlay: (displayId) => ipcRenderer.invoke('overlay:open', displayId),
   closeOverlay: () => ipcRenderer.invoke('overlay:close'),
   sendOverlay: (msg) => ipcRenderer.send('overlay:send', msg),
   onOverlayClosed: (cb) => ipcRenderer.on('overlay:closed', () => cb()),
 
-  // Etapp 4: riktiga musklick (x, y normaliserade 0–1 på vald skärm)
+  // Real mouse clicks (x, y normalized 0–1 on the chosen display)
   mouseEnable: () => ipcRenderer.invoke('mouse:enable'),
   mouseDisable: () => ipcRenderer.invoke('mouse:disable'),
   mouseClick: (displayId, x, y) => ipcRenderer.invoke('mouse:click', { displayId, x, y }),
   mouseMove: (displayId, x, y) => ipcRenderer.send('mouse:move', { displayId, x, y }),
   onMouseDisabled: (cb) => ipcRenderer.on('mouse:disabled', (_e, reason) => cb(reason)),
 
-  // Spel i ../games
+  // Games in ../games
   listGames: () => ipcRenderer.invoke('games:list'),
-  openGame: (gameId, displayId) => ipcRenderer.invoke('games:open', gameId, displayId),
+  openGame: (gameId, displayId, lang) => ipcRenderer.invoke('games:open', gameId, displayId, lang),
   closeGame: () => ipcRenderer.invoke('games:close'),
   onGameClosed: (cb) => ipcRenderer.on('game:closed', () => cb()),
 });

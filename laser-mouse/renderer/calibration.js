@@ -1,21 +1,21 @@
-// Etapp 3: kalibrering och koordinatöversättning.
+// Calibration and coordinate mapping.
 //
-// En homografi är en 3×3-matris som beskriver hur en plan yta (skärmen/väggen)
-// ser ut sedd snett från kameran. Med minst 4 kända punktpar kan vi räkna ut
-// den, och sedan översätta vilken kamerapunkt som helst till en skärmpunkt.
+// A homography is a 3×3 matrix that describes how a flat surface (the screen
+// or wall) looks when seen at an angle by the camera. With at least 4 known
+// point pairs we can compute it, and then map any camera point to a screen point.
 //
-// Skärmkoordinater är normaliserade: (0,0) = övre vänstra hörnet,
-// (1,1) = nedre högra. Det gör kalibreringen oberoende av upplösning/skalning.
+// Screen coordinates are normalized: (0,0) = top-left corner, (1,1) =
+// bottom-right. That makes the calibration independent of resolution and scaling.
 
 (function () {
-  /** Löser A·x = b (n×n) med Gauss-elimination och partiell pivotering. */
+  /** Solves A·x = b (n×n) with Gaussian elimination and partial pivoting. */
   function solve(A, b) {
     const n = b.length;
     const M = A.map((row, i) => [...row, b[i]]);
     for (let col = 0; col < n; col++) {
       let piv = col;
       for (let r = col + 1; r < n; r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
-      if (Math.abs(M[piv][col]) < 1e-12) throw new Error('Punkterna går inte att lösa (ligger de på en linje?)');
+      if (Math.abs(M[piv][col]) < 1e-12) throw new Error('The points cannot be solved (are they on a line?)');
       [M[col], M[piv]] = [M[piv], M[col]];
       for (let r = 0; r < n; r++) {
         if (r === col) continue;
@@ -27,12 +27,12 @@
   }
 
   /**
-   * Homografi från src→dst med minsta kvadrat (exakt för 4 punkter).
+   * Homography from src→dst by least squares (exact for 4 points).
    * @param {{x,y}[]} src  @param {{x,y}[]} dst
-   * @returns {number[]} 9 element, rad för rad, h[8] = 1
+   * @returns {number[]} 9 elements, row by row, h[8] = 1
    */
   function computeHomography(src, dst) {
-    if (src.length < 4) throw new Error('Minst 4 punkter krävs');
+    if (src.length < 4) throw new Error('At least 4 points are required');
     const AtA = Array.from({ length: 8 }, () => new Array(8).fill(0));
     const Atb = new Array(8).fill(0);
     const addRow = (row, rhs) => {
@@ -59,7 +59,7 @@
     const [a, b, c, d, e, f, g, h, i] = m;
     const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
     const det = a * A + b * B + c * C;
-    if (Math.abs(det) < 1e-15) throw new Error('Matrisen går inte att invertera');
+    if (Math.abs(det) < 1e-15) throw new Error('The matrix cannot be inverted');
     const inv = [
       A, -(b * i - c * h), b * f - c * e,
       B, a * i - c * g, -(a * f - c * d),
@@ -69,8 +69,8 @@
   }
 
   /**
-   * En färdig kalibrering: kamerapixlar → normaliserade skärmkoordinater.
-   * Kamerakoordinaterna normaliseras internt (÷ bredd/höjd) för bättre numerik.
+   * A finished calibration: camera pixels → normalized screen coordinates.
+   * Camera coordinates are normalized internally (÷ width/height) for better numerics.
    */
   class ScreenMapping {
     constructor({ H, camWidth, camHeight, pairs, displayId }) {
@@ -89,18 +89,18 @@
       return new ScreenMapping({ H, camWidth, camHeight, pairs, displayId });
     }
 
-    /** Kamerapixel → normaliserad skärmpunkt {x,y} (0–1 inom skärmen). */
+    /** Camera pixel → normalized screen point {x,y} (0–1 inside the screen). */
     toScreen(camX, camY) {
       return applyHomography(this.H, camX / this.camWidth, camY / this.camHeight);
     }
 
-    /** Normaliserad skärmpunkt → kamerapixel (för att rita skärmens kontur). */
+    /** Normalized screen point → camera pixel (used to draw the screen outline). */
     toCamera(u, v) {
       const p = applyHomography(this.Hinv, u, v);
       return { x: p.x * this.camWidth, y: p.y * this.camHeight };
     }
 
-    /** Medelfel i normaliserade enheter (0 för exakt 4-punkts). */
+    /** Mean error in normalized units (0 for an exact 4-point calibration). */
     residual() {
       let sum = 0;
       for (const p of this.pairs) {
@@ -116,7 +116,7 @@
   }
 
   function calibrationPoints(count) {
-    const m = 0.1; // marginal från kanten
+    const m = 0.1; // margin from the edge
     if (count === 9) {
       const pts = [];
       for (const y of [m, 0.5, 1 - m]) for (const x of [m, 0.5, 1 - m]) pts.push({ x, y });
@@ -131,13 +131,13 @@
   }
 
   /**
-   * Samlar in en kamerapunkt per kalibreringspunkt.
-   * En punkt registreras när lasern hållits stilla en stund (stableFrames
-   * bildrutor inom maxSpread px).
+   * Collects one camera point per calibration point.
+   * A point is captured when the laser has been held still for a while
+   * (stableFrames frames within maxSpread px).
    *
-   * Spärr: lasern räknas inte alls om den är närmare än minSeparation px från
-   * en redan registrerad punkt. Då kan samma ställe aldrig registreras två
-   * gånger – även om detekteringen tappar pricken en bildruta.
+   * Guard: the laser is ignored entirely when it is closer than minSeparation
+   * px to an already captured point. That way the same spot can never be
+   * captured twice – even if the detection drops the dot for a frame.
    */
   class Calibrator {
     constructor(points, { stableFrames = 20, maxSpread = 6, minSeparation = 60, maxMissed = 3 } = {}) {
@@ -145,7 +145,7 @@
       this.stableFrames = stableFrames;
       this.maxSpread = maxSpread;
       this.minSeparation = minSeparation;
-      this.maxMissed = maxMissed; // tål några tappade bildrutor i rad (flimmer)
+      this.maxMissed = maxMissed; // tolerate a few dropped frames in a row (flicker)
       this.missed = 0;
       this.index = 0;
       this.samples = [];
@@ -201,14 +201,16 @@
     }
   }
 
-  /** "uppe till vänster", "i mitten" osv. för en normaliserad punkt. */
+  /**
+   * Where a normalized point is on the screen, as a key for the spoken
+   * guidance: 'topLeft', 'topCenter', … 'center' … 'bottomRight'.
+   * The text itself comes from i18n ('where.<key>').
+   */
   function describePoint(p) {
-    const v = p.y < 0.3 ? 'uppe' : p.y > 0.7 ? 'nere' : 'mitten';
-    const h = p.x < 0.3 ? 'vänster' : p.x > 0.7 ? 'höger' : 'mitten';
-    if (v === 'mitten' && h === 'mitten') return 'i mitten';
-    if (h === 'mitten') return `${v} i mitten`;
-    if (v === 'mitten') return `mitten till ${h}`;
-    return `${v} till ${h}`;
+    const v = p.y < 0.3 ? 'top' : p.y > 0.7 ? 'bottom' : 'mid';
+    const h = p.x < 0.3 ? 'Left' : p.x > 0.7 ? 'Right' : 'Center';
+    if (v === 'mid' && h === 'Center') return 'center';
+    return v + h;
   }
 
   function median(pts) {

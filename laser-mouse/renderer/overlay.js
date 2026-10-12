@@ -1,7 +1,7 @@
-// Ritar kryss och skottmarkeringar ovanpå kamerabilden.
+// Draws the crosshair and shot markers on top of the camera view.
 
 (function () {
-  const SHOT_LIFETIME = 3000; // ms en skottmarkering syns
+  const SHOT_LIFETIME = 3000; // ms a shot marker stays visible
 
   function crosshair(ctx, x, y, color) {
     const s = 18;

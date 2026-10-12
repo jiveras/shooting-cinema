@@ -1,5 +1,5 @@
-// Main-processen: fönster, behörigheter, skärmar, överläggsfönstret
-// och (etapp 4) riktiga musklick via libnut.
+// The main process: windows, permissions, displays, the overlay window,
+// games and real mouse clicks via libnut.
 
 const { app, BrowserWindow, globalShortcut, ipcMain, screen, session, systemPreferences } = require('electron');
 const path = require('node:path');
@@ -12,28 +12,28 @@ let mainWindow = null;
 let overlayWindow = null;
 
 async function ensureCameraAccess() {
-  // macOS kräver uttryckligt kameratillstånd. På Windows/Linux är detta en no-op.
+  // macOS requires explicit camera permission. On Windows/Linux this is a no-op.
   if (process.platform !== 'darwin') return true;
   const status = systemPreferences.getMediaAccessStatus('camera');
   if (status === 'granted') return true;
   if (status === 'denied' || status === 'restricted') {
     console.warn(
-      `[laser-mouse] Kameraåtkomst är "${status}". Slå på den under ` +
-        'Systeminställningar → Integritet och säkerhet → Kamera.'
+      `[laser-mouse] Camera access is "${status}". Enable it under ` +
+        'System Settings → Privacy & Security → Camera.'
     );
     return false;
   }
   return systemPreferences.askForMediaAccess('camera');
 }
 
-// ---- Skärmar ----
+// ---- Displays ----
 
 function displayList() {
   const primaryId = screen.getPrimaryDisplay().id;
   return screen.getAllDisplays().map((d, i) => ({
     id: d.id,
-    label: d.label || `Skärm ${i + 1}`,
-    bounds: d.bounds, // i logiska punkter (DIP)
+    label: d.label || `Display ${i + 1}`,
+    bounds: d.bounds, // in logical points (DIP)
     scaleFactor: d.scaleFactor,
     primary: d.id === primaryId,
   }));
@@ -43,10 +43,10 @@ function notifyDisplaysChanged() {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('displays:changed');
 }
 
-// ---- Överläggsfönster ----
-// Ett ramlöst, genomskinligt fönster som täcker vald skärm. Det tar aldrig
-// emot musen (klick går rakt igenom) och tar aldrig fokus, så tangentbordet
-// stannar i huvudfönstret.
+// ---- Overlay window ----
+// A frameless, transparent window covering the chosen display. It never
+// receives the mouse (clicks go straight through) and never takes focus, so
+// the keyboard stays with the main window.
 
 async function openOverlay(displayId) {
   const display =
@@ -103,10 +103,10 @@ ipcMain.on('overlay:send', (_e, msg) => {
   }
 });
 
-// ---- Etapp 4: riktiga musklick ----
-// libnut (från nut.js-familjen) är förkompilerat mot N-API och fungerar
-// därför i Electron utan omkompilering. Det laddas först när man slår på
-// musklick, så att resten av appen fungerar även om paketet saknas.
+// ---- Real mouse clicks ----
+// libnut (from the nut.js family) is prebuilt against N-API and therefore
+// works in Electron without rebuilding. It is only loaded when mouse clicks
+// are turned on, so the rest of the app works even if the package is missing.
 
 const PANIC_SHORTCUT = 'CommandOrControl+Shift+L';
 const MIN_CLICK_INTERVAL_MS = 80;
@@ -122,12 +122,12 @@ function loadLibnut() {
     libnut = require(`@nut-tree-fork/libnut-${process.platform}`);
   } catch (e) {
     libnutError = e.message;
-    console.error('[laser-mouse] Kunde inte ladda libnut:', e);
+    console.error('[laser-mouse] Could not load libnut:', e);
   }
   return libnut;
 }
 
-// macOS: appen måste ha "Hjälpmedel"-behörighet för att få styra musen.
+// macOS: the app needs "Accessibility" permission to control the mouse.
 function hasAccessibility(prompt) {
   if (process.platform !== 'darwin') return true;
   return systemPreferences.isTrustedAccessibilityClient(prompt);
@@ -147,7 +147,7 @@ function setMouseEnabled(on, reason) {
   }
 }
 
-/** Normaliserad punkt (0–1) på en skärm → globala OS-koordinater. */
+/** Normalized point (0–1) on a display → global OS coordinates. */
 function toGlobalPoint(displayId, u, v) {
   const display = screen.getAllDisplays().find((d) => d.id === displayId);
   if (!display) return null;
@@ -157,8 +157,8 @@ function toGlobalPoint(displayId, u, v) {
     x: Math.round(b.x + clamp(u, 0, 1) * (b.width - 1)),
     y: Math.round(b.y + clamp(v, 0, 1) * (b.height - 1)),
   };
-  // macOS och libnut använder samma logiska punkter som Electron.
-  // Windows med skalning vill ha fysiska pixlar.
+  // macOS and libnut use the same logical points as Electron.
+  // Windows with display scaling wants physical pixels.
   if (process.platform === 'win32') p = screen.dipToScreenPoint(p);
   return p;
 }
@@ -167,7 +167,7 @@ ipcMain.handle('mouse:enable', () => {
   const lib = loadLibnut();
   if (!lib) return { ok: false, reason: 'missing', detail: libnutError };
   if (!hasAccessibility(false)) {
-    hasAccessibility(true); // visar macOS-dialogen
+    hasAccessibility(true); // shows the macOS prompt
     return { ok: false, reason: 'accessibility' };
   }
   setMouseEnabled(true);
@@ -191,7 +191,7 @@ ipcMain.handle('mouse:click', (_e, { displayId, x, y }) => {
     libnut.mouseClick('left');
     return { ok: true, x: p.x, y: p.y };
   } catch (e) {
-    console.error('[laser-mouse] Klick misslyckades:', e);
+    console.error('[laser-mouse] Click failed:', e);
     return { ok: false, reason: 'error', detail: e.message };
   }
 });
@@ -203,15 +203,16 @@ ipcMain.on('mouse:move', (_e, { displayId, x, y }) => {
   try {
     libnut.moveMouse(p.x, p.y);
   } catch (e) {
-    console.error('[laser-mouse] Musflytt misslyckades:', e);
+    console.error('[laser-mouse] Mouse move failed:', e);
   }
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
-// ---- Spel ----
-// Spelen ligger i ../games/<id>/ med index.html + game.json.
-// De öppnas i helskärm på vald skärm och tar emot vanliga musklick.
+// ---- Games ----
+// Games live in ../games/<id>/ with an index.html + game.json. They open full
+// screen on the chosen display and receive ordinary mouse clicks.
+// game.json "name"/"description" may be a string or { "sv": …, "en": … }.
 
 const GAMES_DIR = path.join(ROOT, '..', 'games');
 let gameWindow = null;
@@ -225,7 +226,7 @@ function listGames() {
         let meta = {};
         try {
           meta = JSON.parse(fs.readFileSync(path.join(GAMES_DIR, d.name, 'game.json'), 'utf8'));
-        } catch { /* game.json saknas – använd katalognamnet */ }
+        } catch { /* no game.json – use the folder name */ }
         return { id: d.name, name: meta.name || d.name, description: meta.description || '' };
       });
   } catch {
@@ -237,11 +238,12 @@ function closeGame() {
   if (gameWindow && !gameWindow.isDestroyed()) gameWindow.close();
 }
 
-async function openGame(gameId, displayId) {
+async function openGame(gameId, displayId, lang = 'sv') {
   const game = listGames().find((g) => g.id === gameId);
-  if (!game) return { ok: false, reason: 'Spelet finns inte' };
+  if (!game) return { ok: false, reason: 'Game not found' };
   const display =
     screen.getAllDisplays().find((d) => d.id === displayId) || screen.getPrimaryDisplay();
+  const title = typeof game.name === 'object' ? game.name[lang] || game.name.en || gameId : game.name;
 
   closeGame();
   gameWindow = new BrowserWindow({
@@ -249,30 +251,31 @@ async function openGame(gameId, displayId) {
     frame: false,
     show: false,
     backgroundColor: '#06080b',
-    acceptFirstMouse: true, // macOS: första klicket ska träffa spelet, inte bara aktivera fönstret
-    title: game.name,
+    acceptFirstMouse: true, // macOS: the first click should hit the game, not just focus the window
+    title,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   gameWindow.on('closed', () => {
     gameWindow = null;
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:closed');
   });
-  await gameWindow.loadFile(path.join(GAMES_DIR, game.id, 'index.html'));
+  // The game starts in the same language as Laser Mouse (?lang=sv|en)
+  await gameWindow.loadFile(path.join(GAMES_DIR, game.id, 'index.html'), { query: { lang } });
   gameWindow.setBounds(display.bounds);
   if (process.platform === 'darwin') {
-    gameWindow.setSimpleFullScreen(true); // täcker även menyraden, utan ny Space
+    gameWindow.setSimpleFullScreen(true); // also covers the menu bar, without a new Space
   } else {
     gameWindow.setFullScreen(true);
   }
   gameWindow.show();
-  return { ok: true, name: game.name };
+  return { ok: true, name: title };
 }
 
 ipcMain.handle('games:list', () => listGames());
-ipcMain.handle('games:open', (_e, gameId, displayId) => openGame(gameId, displayId));
+ipcMain.handle('games:open', (_e, gameId, displayId, lang) => openGame(gameId, displayId, lang));
 ipcMain.handle('games:close', () => closeGame());
 
-// ---- Huvudfönster ----
+// ---- Main window ----
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -282,7 +285,7 @@ function createWindow() {
     title: 'Laser Mouse',
     webPreferences: {
       preload: path.join(ROOT, 'preload.js'),
-      autoplayPolicy: 'no-user-gesture-required', // ljud utan klick först
+      autoplayPolicy: 'no-user-gesture-required', // sound without a click first
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -300,7 +303,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // Tillåt bara kamera/mikrofon ("media"), neka allt annat.
+  // Allow only camera/microphone ("media"), deny everything else.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     callback(permission === 'media');
   });

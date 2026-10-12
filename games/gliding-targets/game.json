@@ -1,4 +1,10 @@
 {
-  "name": "Glidande mål",
-  "description": "Måltavlor glider över skärmen. 60 sekunder, poäng efter ring. Lätt, medel, svår eller fasta mål."
+  "name": {
+    "sv": "Glidande mål",
+    "en": "Gliding Targets"
+  },
+  "description": {
+    "sv": "Måltavlor glider över skärmen. 60 sekunder, poäng efter ring. Lätt, medel, svår eller fasta mål.",
+    "en": "Targets glide across the screen. 60 seconds, score by ring. Easy, medium, hard or pop-up targets."
+  }
 }

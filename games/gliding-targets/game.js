@@ -1,18 +1,115 @@
-// Glidande mål – skjut på måltavlor som glider över skärmen.
+// Gliding Targets – shoot at targets that glide across the screen.
 //
-// Spelet reagerar på vanliga musklick, så det fungerar med mus, och med
-// laser-mouse (lasern blir ett klick).
+// The game reacts to ordinary mouse clicks, so it works with a mouse as well
+// as with Laser Mouse (where the laser becomes a click).
 //
-// Designregler för projektor + webbkamera:
-//  - mörk bakgrund, dova mål i blågrå toner med LÅG röd kanal
-//  - inga små ljusa prickar (kulhål ritas mörka) – annars kan kameran
-//    förväxla grafiken med laserpricken.
+// Design rules for projector + webcam:
+//  - dark background, muted blue-grey targets with a LOW red channel
+//  - no small bright dots (bullet holes are drawn dark) – otherwise the
+//    camera could mistake the graphics for the laser dot
+//  - a dark bullseye, so the laser dot stands out best exactly there
+//
+// Language: Swedish by default, English available. The language comes from
+// ?lang=sv|en (set by Laser Mouse), otherwise from the last choice in the menu.
 
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
   const ROUND_SECONDS = 60;
+
+  // ---------- Texts ----------
+
+  const STRINGS = {
+    sv: {
+      title: 'Glidande mål',
+      subtitle: 'Skjut på ett val för att börja',
+      footer: '60 sekunder per runda · Esc avslutar · F helskärm',
+      'mode.easy': 'Lätt',
+      'mode.easy.sub': 'Långsamma, stora mål',
+      'mode.medium': 'Medel',
+      'mode.medium.sub': 'Snabbare och mindre',
+      'mode.hard': 'Svår',
+      'mode.hard.sub': 'Små mål som slingrar',
+      'mode.popup': 'Fasta mål',
+      'mode.popup.sub': 'Dyker upp – försvinner',
+      best: 'Rekord: {n}',
+      noBest: 'Inget rekord än',
+      newBest: 'Nytt rekord!',
+      sound: 'Skottljud: {name}',
+      soundSub: 'Skjut här för att byta',
+      language: 'Svenska',
+      languageSub: 'Shoot for English',
+      go: 'Kör!',
+      missed: 'Missat',
+      points: '{n} poäng',
+      'row.hits': 'Träffar',
+      'row.hitsValue': '{hits} av {shots} skott ({acc} %)',
+      'row.avg': 'Snitt per träff',
+      'row.streak': 'Längsta träffserie',
+      'row.escaped': 'Mål som slapp undan',
+      'row.rings': 'Tior / nior / åttor',
+      again: 'Spela igen',
+      menu: 'Meny',
+    },
+    en: {
+      title: 'Gliding Targets',
+      subtitle: 'Shoot a choice to start',
+      footer: '60 seconds per round · Esc quits · F full screen',
+      'mode.easy': 'Easy',
+      'mode.easy.sub': 'Slow, large targets',
+      'mode.medium': 'Medium',
+      'mode.medium.sub': 'Faster and smaller',
+      'mode.hard': 'Hard',
+      'mode.hard.sub': 'Small targets that weave',
+      'mode.popup': 'Pop-up',
+      'mode.popup.sub': 'Appear – and vanish',
+      best: 'Best: {n}',
+      noBest: 'No record yet',
+      newBest: 'New record!',
+      sound: 'Gunshot: {name}',
+      soundSub: 'Shoot here to change',
+      language: 'English',
+      languageSub: 'Skjut för svenska',
+      go: 'Go!',
+      missed: 'Missed',
+      points: '{n} points',
+      'row.hits': 'Hits',
+      'row.hitsValue': '{hits} of {shots} shots ({acc} %)',
+      'row.avg': 'Average per hit',
+      'row.streak': 'Longest streak',
+      'row.escaped': 'Targets that got away',
+      'row.rings': 'Tens / nines / eights',
+      again: 'Play again',
+      menu: 'Menu',
+    },
+  };
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
+  };
+
+  const LANG_KEY = 'gliding-targets:lang';
+  const urlLang = new URLSearchParams(location.search).get('lang');
+  let lang = STRINGS[urlLang] ? urlLang : STRINGS[store.get(LANG_KEY)] ? store.get(LANG_KEY) : 'sv';
+  document.documentElement.lang = lang;
+
+  function t(key, params) {
+    let s = STRINGS[lang][key] ?? STRINGS.sv[key] ?? key;
+    if (params) s = s.replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? String(params[k]) : m));
+    return s;
+  }
+
+  function toggleLang() {
+    lang = lang === 'sv' ? 'en' : 'sv';
+    document.documentElement.lang = lang;
+    document.title = t('title');
+    store.set(LANG_KEY, lang);
+  }
+  document.title = t('title');
+
+  // ---------- Look and rules ----------
 
   const C = {
     bg: '#06080b',
@@ -22,17 +119,17 @@
     panel: '#0d151c',
     panelEdge: '#24394a',
     panelHot: '#33546b',
-    // Måltavlans band, utifrån och in. Mitten är MÖRKAST: detektorn letar
-    // efter en prick som är ljusare än omgivningen, så en ljus mitt
-    // skulle "dränka" laserpricken just där man vill träffa.
+    // Target bands, from the outside in. The centre is the DARKEST: the detector
+    // looks for a dot that is brighter than its surroundings, so a bright centre
+    // would "drown" the laser dot exactly where you want to hit.
     bands: ['#1d3140', '#17293a', '#1d3140', '#14232f', '#101c26', '#0b141b'],
     ring: '#3a6178',
-    hit: [70, 170, 120], // dov grön
+    hit: [70, 170, 120], // muted green
     miss: [110, 122, 134],
     hole: '#05080a',
   };
 
-  // Ringvärden: radie som andel av måltavlan → poäng
+  // Ring values: radius as a fraction of the target → points
   const RINGS = [
     [0.15, 10],
     [0.3, 9],
@@ -43,14 +140,14 @@
   ];
 
   const MODES = {
-    easy: { label: 'Lätt', sub: 'Långsamma, stora mål', kind: 'glide', speed: [110, 170], radius: 95, max: 2, spawn: [1.3, 2.1], wobble: 0 },
-    medium: { label: 'Medel', sub: 'Snabbare och mindre', kind: 'glide', speed: [180, 260], radius: 72, max: 3, spawn: [0.9, 1.5], wobble: 0 },
-    hard: { label: 'Svår', sub: 'Små mål som slingrar', kind: 'glide', speed: [260, 380], radius: 52, max: 4, spawn: [0.6, 1.1], wobble: 70 },
-    popup: { label: 'Fasta mål', sub: 'Dyker upp – försvinner', kind: 'popup', radius: 70, life: [1.5, 2.5], max: 2, spawn: [0.6, 1.2] },
+    easy: { kind: 'glide', speed: [110, 170], radius: 95, max: 2, spawn: [1.3, 2.1], wobble: 0 },
+    medium: { kind: 'glide', speed: [180, 260], radius: 72, max: 3, spawn: [0.9, 1.5], wobble: 0 },
+    hard: { kind: 'glide', speed: [260, 380], radius: 52, max: 4, spawn: [0.6, 1.1], wobble: 70 },
+    popup: { kind: 'popup', radius: 70, life: [1.5, 2.5], max: 2, spawn: [0.6, 1.2] },
   };
   const MODE_ORDER = ['easy', 'medium', 'hard', 'popup'];
 
-  // ---------- Hjälpare ----------
+  // ---------- Helpers ----------
 
   let W = 0, H = 0, S = 1;
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -67,10 +164,6 @@
   window.addEventListener('resize', resize);
   resize();
 
-  const store = {
-    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignorera */ } },
-  };
   const bestKey = (m) => `gliding-targets:best:${m}`;
   const getBest = (m) => Number(store.get(bestKey(m)) || 0);
 
@@ -88,7 +181,7 @@
 
   const rgba = ([r, g, b], a) => `rgba(${r}, ${g}, ${b}, ${a})`;
 
-  // ---------- Ljud ----------
+  // ---------- Sound ----------
 
   let audio = null;
   function ac() {
@@ -99,20 +192,20 @@
   function beep(freq, dur, { type = 'sine', gain = 0.15, at = 0 } = {}) {
     try {
       const a = ac();
-      const t = a.currentTime + at;
+      const t0 = a.currentTime + at;
       const o = a.createOscillator();
       const g = a.createGain();
       o.type = type;
-      o.frequency.setValueAtTime(freq, t);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(gain, t + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(gain, t0 + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       o.connect(g).connect(a.destination);
-      o.start(t);
-      o.stop(t + dur + 0.02);
-    } catch { /* inget ljud */ }
+      o.start(t0);
+      o.stop(t0 + dur + 0.02);
+    } catch { /* no sound */ }
   }
-  // Skottljud (games/shared/gunshots.js). Valet sparas.
+  // Gunshot sound (games/shared/gunshots.js). The choice is saved.
   const Gunshots = window.Gunshots;
   const guns = Gunshots ? new Gunshots(ac) : null;
   const SOUND_KEY = 'gliding-targets:shotSound';
@@ -120,24 +213,23 @@
   const fire = () => guns && guns.play(shotSound);
 
   const sfx = {
-    // Träffljudet kommer en aning efter skottet så att det inte dränks
+    // The hit sound comes slightly after the shot so it isn't drowned out
     hit: (pts) => { beep(380 + pts * 55, 0.12, { type: 'triangle', gain: 0.2, at: 0.1 }); if (pts === 10) beep(1500, 0.18, { at: 0.16, gain: 0.12 }); },
     miss: () => {},
     escape: () => beep(200, 0.15, { type: 'sine', gain: 0.06 }),
     tick: () => beep(520, 0.1),
     go: () => beep(880, 0.25, { gain: 0.2 }),
     end: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.3, { at: i * 0.11 })),
-    select: () => beep(660, 0.1),
   };
 
-  // ---------- Spelets tillstånd ----------
+  // ---------- Game state ----------
 
   const game = {
     scene: 'menu', // 'menu' | 'countdown' | 'play' | 'results'
     mode: 'easy',
     targets: [],
     effects: [],
-    holes: [], // missade skott (mörka märken på bakgrunden)
+    holes: [], // missed shots (dark marks on the background)
     stats: null,
     timeLeft: ROUND_SECONDS,
     spawnIn: 0,
@@ -180,17 +272,17 @@
     game.holes = [];
   }
 
-  // ---------- Mål ----------
+  // ---------- Targets ----------
 
   function spawnTarget() {
     const m = MODES[game.mode];
     const r = m.radius * S;
-    const top = 120 * S + r; // under poängraden
+    const top = 120 * S + r; // below the score bar
     const bottom = H - r - 20 * S;
 
     if (m.kind === 'glide') {
       const dir = Math.random() < 0.5 ? 1 : -1;
-      const wob = m.wobble * S; // håll hela slingret inom skärmen
+      const wob = m.wobble * S; // keep the whole weave on screen
       game.targets.push({
         kind: 'glide',
         x: dir > 0 ? -r : W + r,
@@ -205,74 +297,74 @@
         holes: [],
       });
     } else {
-      // Fasta mål: slumpa plats som inte överlappar andra
+      // Pop-up targets: pick a spot that doesn't overlap the others
       let x, y, ok = false;
       for (let i = 0; i < 30 && !ok; i++) {
         x = rand(r + 20 * S, W - r - 20 * S);
         y = rand(top, bottom);
-        ok = game.targets.every((t) => Math.hypot(t.x - x, t.y - y) > t.r + r + 30 * S);
+        ok = game.targets.every((tg) => Math.hypot(tg.x - x, tg.y - y) > tg.r + r + 30 * S);
       }
       game.targets.push({ kind: 'popup', x, y, r, age: 0, life: rand(m.life[0], m.life[1]), holes: [] });
     }
   }
 
   function updateTargets(dt) {
-    for (const t of game.targets) {
-      t.age += dt;
-      if (t.kind === 'glide') {
-        t.x += t.vx * dt;
-        t.y = t.y0 + Math.sin(t.age * t.freq + t.phase) * t.wobble;
-        t.gone = (t.vx > 0 && t.x - t.r > W) || (t.vx < 0 && t.x + t.r < 0);
+    for (const tg of game.targets) {
+      tg.age += dt;
+      if (tg.kind === 'glide') {
+        tg.x += tg.vx * dt;
+        tg.y = tg.y0 + Math.sin(tg.age * tg.freq + tg.phase) * tg.wobble;
+        tg.gone = (tg.vx > 0 && tg.x - tg.r > W) || (tg.vx < 0 && tg.x + tg.r < 0);
       } else {
-        t.gone = t.age >= t.life;
+        tg.gone = tg.age >= tg.life;
       }
-      if (t.gone) {
-        if (t.kind === 'popup') addEffect({ type: 'escape', x: t.x, y: t.y, life: 0.8 });
+      if (tg.gone) {
+        if (tg.kind === 'popup') addEffect({ type: 'escape', x: tg.x, y: tg.y, life: 0.8 });
         game.stats.escaped++;
         game.stats.streak = 0;
         sfx.escape();
       }
     }
-    game.targets = game.targets.filter((t) => !t.gone);
+    game.targets = game.targets.filter((tg) => !tg.gone);
   }
 
-  function targetScale(t) {
-    if (t.kind !== 'popup') return 1;
-    const inT = Math.min(1, t.age / 0.15);
+  function targetScale(tg) {
+    if (tg.kind !== 'popup') return 1;
+    const inT = Math.min(1, tg.age / 0.15);
     return 0.3 + 0.7 * (1 - Math.pow(1 - inT, 3));
   }
 
-  function targetAlpha(t) {
-    if (t.kind !== 'popup') return 1;
-    const left = t.life - t.age;
+  function targetAlpha(tg) {
+    if (tg.kind !== 'popup') return 1;
+    const left = tg.life - tg.age;
     return left < 0.35 ? Math.max(0, left / 0.35) : 1;
   }
 
-  function drawTarget(t) {
-    const s = targetScale(t);
-    const r = t.r * s;
+  function drawTarget(tg) {
+    const s = targetScale(tg);
+    const r = tg.r * s;
     ctx.save();
-    ctx.globalAlpha = targetAlpha(t);
-    // Band utifrån och in
+    ctx.globalAlpha = targetAlpha(tg);
+    // Bands from the outside in
     for (let i = 0; i < RINGS.length; i++) {
       const frac = RINGS[RINGS.length - 1 - i][0];
       ctx.fillStyle = C.bands[i];
       ctx.beginPath();
-      ctx.arc(t.x, t.y, r * frac, 0, Math.PI * 2);
+      ctx.arc(tg.x, tg.y, r * frac, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Tunna ringlinjer
+    // Thin ring lines
     ctx.strokeStyle = C.ring;
     ctx.lineWidth = Math.max(1, 1.5 * S);
     for (const [frac] of RINGS) {
       ctx.beginPath();
-      ctx.arc(t.x, t.y, r * frac, 0, Math.PI * 2);
+      ctx.arc(tg.x, tg.y, r * frac, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
   }
 
-  // ---------- Effekter ----------
+  // ---------- Effects ----------
 
   function addEffect(e) {
     game.effects.push({ ...e, age: 0 });
@@ -281,7 +373,7 @@
   function updateEffects(dt) {
     for (const e of game.effects) e.age += dt;
     game.effects = game.effects.filter((e) => e.age < e.life);
-    // Missmärken bleknar efter några sekunder
+    // Miss marks fade after a few seconds
     for (const h of game.holes) h.age += dt;
     game.holes = game.holes.filter((h) => h.age < 4);
   }
@@ -296,17 +388,17 @@
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.r * (0.6 + p * 0.9), 0, Math.PI * 2);
         ctx.stroke();
-        // Mörkt kulhål i mitten av träffen
+        // Dark bullet hole where the hit landed
         ctx.fillStyle = `rgba(5, 8, 10, ${a})`;
         ctx.beginPath();
         ctx.arc(e.hx, e.hy, 6 * S, 0, Math.PI * 2);
         ctx.fill();
         text(`+${e.pts}`, e.x, e.y - e.r * 0.4 - p * 60 * S, 44, rgba(C.hit, a), 'center', 700);
       } else if (e.type === 'escape') {
-        text('Missat', e.x, e.y - p * 30 * S, 26, rgba(C.miss, a * 0.6));
+        text(t('missed'), e.x, e.y - p * 30 * S, 26, rgba(C.miss, a * 0.6));
       }
     }
-    // Missade skott: mörka hål med svag ring
+    // Missed shots: dark holes with a faint ring
     for (const h of game.holes) {
       const a = Math.max(0, 1 - h.age / 4);
       ctx.fillStyle = `rgba(2, 3, 4, ${a})`;
@@ -321,13 +413,13 @@
     }
   }
 
-  // ---------- Skott ----------
+  // ---------- Shooting ----------
 
   function shoot(x, y) {
     if (game.scene === 'menu' || game.scene === 'results') {
-      const b = game.buttons.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+      const b = game.buttons.find((btn) => x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h);
       if (b && b.id === 'sound') {
-        // Byt skottljud – och provskjut det nya direkt
+        // Change gunshot sound – and fire the new one right away as a preview
         if (!Gunshots) return;
         shotSound = Gunshots.next(shotSound);
         store.set(SOUND_KEY, shotSound);
@@ -336,7 +428,8 @@
       }
       fire();
       if (!b) return;
-      if (b.id === 'menu') toMenu();
+      if (b.id === 'lang') toggleLang();
+      else if (b.id === 'menu') toMenu();
       else if (b.id === 'again') startRound(game.mode);
       else startRound(b.id);
       return;
@@ -347,11 +440,11 @@
     const st = game.stats;
     st.shots++;
 
-    // Översta (senast skapade) målet först
+    // Topmost (most recently created) target first
     for (let i = game.targets.length - 1; i >= 0; i--) {
-      const t = game.targets[i];
-      const r = t.r * targetScale(t);
-      const d = Math.hypot(x - t.x, y - t.y) / r;
+      const tg = game.targets[i];
+      const r = tg.r * targetScale(tg);
+      const d = Math.hypot(x - tg.x, y - tg.y) / r;
       if (d > 1) continue;
       const pts = RINGS.find(([frac]) => d <= frac)[1];
       st.score += pts;
@@ -360,7 +453,7 @@
       st.bestStreak = Math.max(st.bestStreak, st.streak);
       st.rings[pts] = (st.rings[pts] || 0) + 1;
       game.targets.splice(i, 1);
-      addEffect({ type: 'hit', x: t.x, y: t.y, r: t.r, hx: x, hy: y, pts, life: 0.7 });
+      addEffect({ type: 'hit', x: tg.x, y: tg.y, r: tg.r, hx: x, hy: y, pts, life: 0.7 });
       sfx.hit(pts);
       return;
     }
@@ -389,7 +482,7 @@
     }
   });
 
-  // ---------- Knappar (meny/resultat) ----------
+  // ---------- Buttons (menu/results) ----------
 
   function drawButton(b) {
     const hot = game.hover && game.hover.x >= b.x && game.hover.x <= b.x + b.w && game.hover.y >= b.y && game.hover.y <= b.y + b.h;
@@ -422,27 +515,42 @@
       const best = getBest(id);
       return {
         id,
-        label: MODES[id].label,
-        sub: MODES[id].sub,
-        extra: best ? `Rekord: ${best}` : 'Inget rekord än',
+        label: t(`mode.${id}`),
+        sub: t(`mode.${id}.sub`),
+        extra: best ? t('best', { n: best }) : t('noBest'),
         x: x0 + (i % 2) * (bw + gap),
         y: y0 + Math.floor(i / 2) * (bh + gap),
         w: bw,
         h: bh,
       };
     });
+    // Bottom row: gunshot sound (wide) and language
+    const rowY = y0 + 2 * (bh + gap);
+    const rowH = 110 * S;
+    const full = bw * 2 + gap;
+    const langW = Math.round(full * 0.32);
     if (Gunshots) {
       game.buttons.push({
         id: 'sound',
-        label: `Skottljud: ${Gunshots.nameOf(shotSound)}`,
-        sub: 'Skjut här för att byta',
+        label: t('sound', { name: Gunshots.nameOf(shotSound, lang) }),
+        sub: t('soundSub'),
         x: x0,
-        y: y0 + 2 * (bh + gap),
-        w: bw * 2 + gap,
-        h: 110 * S,
+        y: rowY,
+        w: full - langW - gap,
+        h: rowH,
         small: true,
       });
     }
+    game.buttons.push({
+      id: 'lang',
+      label: t('language'),
+      sub: t('languageSub'),
+      x: Gunshots ? x0 + full - langW : x0,
+      y: rowY,
+      w: Gunshots ? langW : full,
+      h: rowH,
+      small: true,
+    });
   }
 
   function layoutResults() {
@@ -451,19 +559,19 @@
     const gap = 32 * S;
     const y = H * 0.74;
     game.buttons = [
-      { id: 'again', label: 'Spela igen', x: W / 2 - bw - gap / 2, y, w: bw, h: bh },
-      { id: 'menu', label: 'Meny', x: W / 2 + gap / 2, y, w: bw, h: bh },
+      { id: 'again', label: t('again'), x: W / 2 - bw - gap / 2, y, w: bw, h: bh },
+      { id: 'menu', label: t('menu'), x: W / 2 + gap / 2, y, w: bw, h: bh },
     ];
   }
 
-  // ---------- Scener ----------
+  // ---------- Scenes ----------
 
   function drawMenu() {
     layoutMenu();
-    text('Glidande mål', W / 2, H * 0.14, 84, C.text, 'center', 700);
-    text('Skjut på ett val för att börja', W / 2, H * 0.14 + 80 * S, 28, C.dim);
+    text(t('title'), W / 2, H * 0.14, 84, C.text, 'center', 700);
+    text(t('subtitle'), W / 2, H * 0.14 + 80 * S, 28, C.dim);
     game.buttons.forEach(drawButton);
-    text('60 sekunder per runda · Esc avslutar · F helskärm', W / 2, H - 40 * S, 20, C.faint);
+    text(t('footer'), W / 2, H - 40 * S, 20, C.faint);
   }
 
   function drawHud() {
@@ -473,7 +581,7 @@
     text(`${Math.ceil(game.timeLeft)} s`, 40 * S, y, 40, game.timeLeft < 10 ? C.text : C.dim, 'left', 600);
     text(`${st.score}`, W / 2, y, 56, C.text, 'center', 700);
     text(`${st.hits}/${st.shots} · ${acc} %`, W - 40 * S, y, 32, C.dim, 'right');
-    // Tidslinje
+    // Time bar
     ctx.fillStyle = C.faint;
     ctx.fillRect(0, 100 * S, W * (game.timeLeft / ROUND_SECONDS), 3 * S);
   }
@@ -481,12 +589,12 @@
   function drawCountdown() {
     drawHud();
     const n = Math.ceil(game.countdown);
-    text(n > 0 ? String(n) : 'Kör!', W / 2, H / 2, 220, C.dim, 'center', 700);
-    text(MODES[game.mode].label, W / 2, H / 2 + 160 * S, 32, C.faint);
+    text(n > 0 ? String(n) : t('go'), W / 2, H / 2, 220, C.dim, 'center', 700);
+    text(t(`mode.${game.mode}`), W / 2, H / 2 + 160 * S, 32, C.faint);
   }
 
   function drawPlay() {
-    for (const t of game.targets) drawTarget(t);
+    for (const tg of game.targets) drawTarget(tg);
     drawEffects();
     drawHud();
   }
@@ -496,16 +604,16 @@
     const st = game.stats;
     const acc = st.shots ? Math.round((st.hits / st.shots) * 100) : 0;
     const avg = st.hits ? (st.score / st.hits).toFixed(1) : '–';
-    text(MODES[game.mode].label, W / 2, H * 0.12, 32, C.dim);
-    text(`${st.score} poäng`, W / 2, H * 0.24, 110, C.text, 'center', 700);
-    text(game.newBest ? 'Nytt rekord!' : `Rekord: ${getBest(game.mode)}`, W / 2, H * 0.24 + 90 * S, 30, game.newBest ? rgba(C.hit, 1) : C.dim, 'center', 600);
+    text(t(`mode.${game.mode}`), W / 2, H * 0.12, 32, C.dim);
+    text(t('points', { n: st.score }), W / 2, H * 0.24, 110, C.text, 'center', 700);
+    text(game.newBest ? t('newBest') : t('best', { n: getBest(game.mode) }), W / 2, H * 0.24 + 90 * S, 30, game.newBest ? rgba(C.hit, 1) : C.dim, 'center', 600);
 
     const rows = [
-      ['Träffar', `${st.hits} av ${st.shots} skott (${acc} %)`],
-      ['Snitt per träff', `${avg}`],
-      ['Längsta träffserie', `${st.bestStreak}`],
-      ['Mål som slapp undan', `${st.escaped}`],
-      ['Tior / nior / åttor', `${st.rings[10] || 0} / ${st.rings[9] || 0} / ${st.rings[8] || 0}`],
+      [t('row.hits'), t('row.hitsValue', { hits: st.hits, shots: st.shots, acc })],
+      [t('row.avg'), `${avg}`],
+      [t('row.streak'), `${st.bestStreak}`],
+      [t('row.escaped'), `${st.escaped}`],
+      [t('row.rings'), `${st.rings[10] || 0} / ${st.rings[9] || 0} / ${st.rings[8] || 0}`],
     ];
     const y0 = H * 0.44;
     rows.forEach(([k, v], i) => {
@@ -516,7 +624,7 @@
     game.buttons.forEach(drawButton);
   }
 
-  // ---------- Huvudloop ----------
+  // ---------- Main loop ----------
 
   let last = performance.now();
   function frame(now) {
@@ -561,6 +669,7 @@
   }
   requestAnimationFrame(frame);
 
-  // För automatiska tester
+  // For automated tests
   window.__game = game;
+  window.__lang = () => lang;
 })();

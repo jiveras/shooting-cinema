@@ -1,14 +1,14 @@
-// Fasta prickar: lär in ljusa punkter som INTE är lasern (lysdioder,
-// reflexer, lampor) och be detektorn ignorera dem.
+// Static spots: learn bright points that are NOT the laser (LEDs,
+// reflections, lamps) and make the detector ignore them.
 //
-// Inlärning: med lasern släckt tittar vi ~2 s. Prickar som syns i minst
-// en tredjedel av bildrutorna (även blinkande lysdioder) blir zoner.
-// Zonerna sparas per kameraupplösning.
+// Learning: with the laser off we watch for ~2 s. Spots seen in at least
+// a third of the frames (blinking LEDs too) become zones.
+// The zones are saved per camera resolution.
 
 (function () {
   const LEARN_MS = 2000;
-  const MERGE_PX = 15; // träffar närmare än så räknas som samma prick
-  const MIN_SHARE = 0.3; // andel av bildrutorna pricken måste synas i
+  const MERGE_PX = 15; // hits closer than this count as the same spot
+  const MIN_SHARE = 0.3; // share of frames the spot must be seen in
 
   class StaticSpots {
     constructor({ store, detector }) {
@@ -27,7 +27,7 @@
       return `ignoreZones:${this.size}`;
     }
 
-    /** Anropas när kamerans upplösning är känd/ändrad. */
+    /** Called when the camera resolution is known/changed. */
     setSize(w, h) {
       const size = `${w}x${h}`;
       if (size === this.size) return;
@@ -53,14 +53,14 @@
       this.onChange();
     }
 
-    /** Per bildruta. Returnerar true när en inlärning just blev klar. */
+    /** Per frame. Returns true when a learning run has just finished. */
     feed(result) {
       const L = this.learning;
       if (!L) return false;
 
       L.frames++;
       for (const b of result.blobs || []) {
-        if (b.ignored) continue; // redan känd
+        if (b.ignored) continue; // already known
         let c = L.clusters.find((k) => Math.hypot(k.x - b.x, k.y - b.y) < MERGE_PX);
         if (!c) {
           c = { x: b.x, y: b.y, n: 0, pixels: 0, lastFrame: -1 };
@@ -91,7 +91,7 @@
       return true;
     }
 
-    /** Rita zonerna i kamerabilden. */
+    /** Draw the zones in the camera view. */
     draw(ctx) {
       if (!this.zones.length) return;
       ctx.save();
