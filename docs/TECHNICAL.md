@@ -187,6 +187,12 @@ To add a language, add a block with the same keys to `STRINGS` in `i18n.js` (and
 
 Games are plain web pages: they work standalone in a browser too (press **F** for full screen).
 
+### Clay Pigeons internals
+
+- Clays are simple ballistic objects (`x, y, vx, vy`, gravity, optional drag) with a depth scale: trap clays shrink from 1.0 to 0.38 over their flight to look like they fly away; skeet clays have a constant scale; tower clays fall with reduced gravity; rabbits roll and hop along the ground.
+- A round is planned up front as 25 clays in singles and doubles (`planRound`). Each throw allows two shots; a shot breaks the nearest unbroken clay within *clay radius + shot pattern radius*, and a hit within 60 % of the clay radius counts as *smoked*.
+- Release is either automatic (random 2.4–3.6 s delay) or voice: the microphone's RMS level must stay above a threshold for 3 frames, and the game ignores it for 0.9 s after its own gunshot sound. If the microphone is unavailable it falls back to automatic release. The page CSP allows `media-src mediastream:` and Laser Mouse's session permission handler allows `media`, so the game window can use the microphone.
+
 ---
 
 ## Writing a game

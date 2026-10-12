@@ -39,7 +39,7 @@ flowchart LR
 - 🔫 **Zeroing** – compensates for where the laser is mounted (taped to the barrel, laser cartridge, …)
 - 🔊 **Eyes-free setup** – voice and sound guidance during calibration ("Point 2, top right"), so you can watch your sights instead of the screen
 - 🖥️ **Multi-monitor** – choose which display receives the clicks
-- 🕹️ **Built-in games** that launch full screen on the projector, with synthesized gunshot sounds (shotgun with pump action, pistol, rifle, laser)
+- 🕹️ **Built-in games** that launch full screen on the projector – *Gliding Targets* and *Clay Pigeons* (trap, skeet, sporting) – with synthesized gunshot sounds (shotgun with pump action, pistol, rifle, laser)
 - 🛑 **Emergency stop** – <kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>L</kbd> turns mouse control off from anywhere
 - 🌍 **Swedish and English** – Swedish by default; switch language in the toolbar (the games follow along)
 
@@ -118,6 +118,22 @@ Targets glide across the screen – 60 seconds, score by ring (10 in the centre 
 
 The graphics are deliberately dark and low in red, and the bullseye is the darkest part of the target – so the projector never blinds the camera and the laser dot stands out exactly where you want to hit. Pick your gunshot sound in the menu: a hefty shotgun with pump action, pistol, rifle, sci-fi laser – or silence.
 
+### Clay Pigeons
+
+Clays thrown in an arc, like the real thing. Three disciplines:
+
+- **Trap** – clays fly away from you out of a bunker in front, shrinking as they go
+- **Skeet** – crossing clays from a high house and a low house, with doubles
+- **Sporting** – a mix: trap and skeet clays, doubles, tower clays dropping from above and "rabbits" bouncing along the ground
+
+25 clays per round and **two shots per throw**, as with a double-barrelled shotgun – your score is how many you break, just like on the range. Each shot shows the outline of the shot pattern, so you can see whether you were ahead of or behind the clay. A centre hit turns the clay into a puff of dust: *Smoked!*
+
+Clays are released automatically after a random delay – long enough to break open the gun and reload a laser cartridge – or, if you prefer, **call "Pull!"** and the microphone releases the clay.
+
+| Menu | A double in the air |
+|---|---|
+| ![Clay Pigeons menu](docs/images/clay-menu.png) | ![Two clays in flight from the skeet houses](docs/images/clay-flight.png) |
+
 ### Bring your own
 
 Because the laser becomes an ordinary mouse click, you're not limited to the built-in games. Try a browser game, a drawing app, or a classic shooter. New games are just a folder with an `index.html` – see [docs/TECHNICAL.md](docs/TECHNICAL.md#writing-a-game).
@@ -147,7 +163,7 @@ Because the laser becomes an ordinary mouse click, you're not limited to the bui
 | Folder | What's inside |
 |---|---|
 | [`laser-mouse/`](laser-mouse/) | The Electron app: webcam, detection, calibration, zeroing, mouse control |
-| [`games/`](games/) | Games to shoot at – plain web pages that react to mouse clicks |
+| [`games/`](games/) | Games to shoot at – Gliding Targets and Clay Pigeons; plain web pages that react to mouse clicks |
 | [`docs/`](docs/) | [Technical documentation](docs/TECHNICAL.md) and screenshots |
 
 Curious how the detection, calibration maths or mouse control work? Read **[docs/TECHNICAL.md](docs/TECHNICAL.md)**.
@@ -158,7 +174,7 @@ Curious how the detection, calibration maths or mouse control work? Read **[docs
 - [x] Laser → mouse click bridge
 - [x] Calibration, zeroing, static-spot filtering
 - [x] First game: Gliding Targets
-- [ ] Clay pigeons – targets thrown in an arc, like the real thing
+- [x] Clay Pigeons – trap, skeet and sporting
 - [ ] Shot timer and drills
 - [x] Swedish and English UI
 
