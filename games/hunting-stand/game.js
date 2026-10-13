@@ -468,15 +468,15 @@
     for (let i = 0; i < n; i++) {
       const a = Math.PI + (i / (n - 1)) * Math.PI;
       const k = 0.82 + r() * 0.18;
-      pts.push([z.cx + Math.cos(a) * z.rx * 0.95 * k, z.cy + z.ry * 0.7 + Math.sin(a) * z.ry * 0.95 * k]);
+      pts.push([z.cx + Math.cos(a) * z.rx * 0.95 * k, z.cy + z.ry * 0.85 + Math.sin(a) * z.ry * 1.6 * k]);
     }
     ctx.fillStyle = C.rock;
     ctx.strokeStyle = C.rockEdge;
     ctx.lineWidth = 3 * S;
     ctx.beginPath();
-    ctx.moveTo(z.cx - z.rx * 0.95, z.cy + z.ry * 0.7);
+    ctx.moveTo(z.cx - z.rx * 0.95, z.cy + z.ry * 0.85);
     for (const [x, y] of pts) ctx.lineTo(x, y);
-    ctx.lineTo(z.cx + z.rx * 0.95, z.cy + z.ry * 0.7);
+    ctx.lineTo(z.cx + z.rx * 0.95, z.cy + z.ry * 0.85);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
