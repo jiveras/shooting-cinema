@@ -175,7 +175,7 @@ What the game checks, every time you pull the trigger:
 | **Know your target** | A hunting dog in an orange vest looks a lot like a fox, and a crane (protected) isn't a duck |
 | **The right spot** | Aim behind the shoulder – heart and lungs. Head, neck and belly shots wound the animal and cost points |
 
-Dropping an animal cleanly scores 10 (+3 if it stood still), letting a bad situation pass scores +5, a wounded animal costs 5 and an unsafe shot costs 10. After every encounter the game tells you *why* it was good or bad. Three stands – **Moose**, **Boar** (in dense vegetation) and **Mixed** (with birds) – ten encounters each, and the animals walk, stop, root and flee with anatomically drawn legs.
+Dropping an animal cleanly scores 10 (+3 if it stood still), letting a bad situation pass scores +5, a wounded animal costs 5 and an unsafe shot costs 10. After every encounter the game tells you *why* it was good or bad. Three stands – **Moose**, **Boar** (in dense vegetation) and **Mixed** (with birds) – ten encounters each, and the animals walk, trot or run past – sometimes stopping (anywhere), sometimes not at all – with anatomically drawn legs.
 
 | Menu | A rock behind the moose | Calm and clean |
 |---|---|---|

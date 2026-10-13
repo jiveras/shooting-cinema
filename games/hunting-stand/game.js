@@ -30,6 +30,7 @@
   const ctx = canvas.getContext('2d');
 
   const ENCOUNTERS = 10;
+  const REVIEW_S = 2.2; // the scene freezes this long to show where the shot went
   const POINTS = { clean: 10, still: 3, hold: 5, wound: -5, unsafe: -10 };
 
   // ---------- Texts ----------
@@ -74,6 +75,8 @@
       'name.duck': 'Gräsand',
       'name.crane': 'Trana (fridlyst)',
       // Outcomes
+      'review.hit': 'Din träff',
+      'review.ideal': 'Rätt träffområde – hjärta/lungor',
       'res.clean': 'Fällt på platsen',
       'res.still': 'Fällt på platsen – lugnt djur',
       'res.wound': 'Skadskjutet – djuret flydde',
@@ -153,6 +156,8 @@
       'name.hare': 'Hare',
       'name.duck': 'Mallard',
       'name.crane': 'Crane (protected)',
+      'review.hit': 'Your shot',
+      'review.ideal': 'Right spot – heart and lungs',
       'res.clean': 'Dropped on the spot',
       'res.still': 'Dropped on the spot – calm animal',
       'res.wound': 'Wounded – the animal fled',
@@ -607,7 +612,7 @@
   // ---------- Animals: behaviour ----------
 
   /** Creates a walking animal that follows a list of stops and leaves at the far edge. */
-  function walker(e, spId, { stops = [], off = 0, role = 'main', sm = 1 } = {}) {
+  function walker(e, spId, { stops = [], off = 0, role = 'main', sm = 1, stretch = 1, pace = 'walk' } = {}) {
     const sp = SP[spId];
     const dir = e.dir;
     const margin = 280 * S;
@@ -618,7 +623,7 @@
     return {
       sp, spId, role, dir, x: startX, gy: groundY, by: groundY, s: sp.scale * S, vx: 0, state: 'walk',
       wp, wpi: 0, timer: 0, gait: rand(0, 1), wb: 0, bob: rand(0, 6), headDown: 0, headTarget: 0,
-      speed: sp.speed * S * sm, exitX, flee: false, dead: false, deadT: 0, gone: false, alpha: 1,
+      speed: sp.speed * S * sm, baseSpeed: sp.speed * S, stretch, pace, exitX, flee: false, dead: false, deadT: 0, gone: false, alpha: 1,
     };
   }
 
@@ -674,16 +679,16 @@
         a.wpi++;
       }
     } else {
-      const v = a.flee ? a.speed * (sp.fleeMul || 3) : a.speed;
+      const v = a.flee ? a.baseSpeed * (sp.fleeMul || 3) : a.speed;
       a.vx = a.dir * v;
       a.x += a.vx * dt;
       if (sp.kind === 'hare') {
         // Hares bound: one hop per cycle
-        a.gait = (a.gait + dt * (a.flee ? 3.4 : 2.4)) % 1;
+        a.gait = (a.gait + dt * (a.flee ? 3.4 : 1.9 + 0.55 * a.stretch)) % 1;
         hop = Math.sin(a.gait * Math.PI * 2) > 0 ? Math.sin(a.gait * Math.PI * 2) * 22 * a.s : 0;
       } else {
         // Stride length keeps the feet planted while the body moves
-        const stride = sp.stride * (a.flee ? 1.7 : 1);
+        const stride = sp.stride * a.stretch;
         a.gait = (a.gait + (0.6 * (v / (S * sp.scale)) * dt) / stride) % 1;
       }
       const w = a.wp[a.wpi];
@@ -740,77 +745,97 @@
 
   // ---------- Encounters ----------
 
-  function stopsFor(e, n, mode, dur) {
-    const fr = [rand(0.3, 0.46), rand(0.62, 0.76)];
-    const out = [];
-    for (let i = 0; i < n; i++) {
-      const f = fr[i];
-      out.push({ x: e.dir > 0 ? W * f : W * (1 - f), dur: rand(dur[0], dur[1]), mode });
+  // How an animal passes: at what pace, and whether it stops (and where).
+  // Animals do not always stop – and when they do it can be anywhere. Some
+  // trot, and some run straight through.
+  const PACE = {
+    walk: { sm: 1, stretch: 1 },
+    trot: { sm: 1.7, stretch: 1.3 },
+    run: { sm: 3.1, stretch: 1.7 },
+  };
+
+  function weighted(obj) {
+    const entries = Object.entries(obj);
+    let r = Math.random() * entries.reduce((a, [, w]) => a + w, 0);
+    for (const [k, w] of entries) {
+      r -= w;
+      if (r <= 0) return k;
     }
-    return out;
+    return entries[0][0];
   }
+
+  /** `stops` gives the weights for 0, 1, 2 … stops per pace. */
+  function plan(e, { pace, stops, mode, dur }) {
+    const name = weighted(pace);
+    const counts = stops[name] || [1];
+    const nStops = Number(weighted(Object.fromEntries(counts.map((w, i) => [i, w]))));
+    const fr = [];
+    while (fr.length < nStops) {
+      const f = rand(0.2, 0.8);
+      if (fr.every((g) => Math.abs(g - f) >= 0.2)) fr.push(f);
+    }
+    fr.sort((a, b) => a - b);
+    const shorter = name === 'walk' ? 1 : 0.6;
+    const list = fr.map((f) => ({
+      x: e.dir > 0 ? W * f : W * (1 - f), dur: rand(dur[0], dur[1]) * shorter, mode,
+    }));
+    e.anchor = list.length ? list[0].x : W * rand(0.3, 0.7);
+    return { stops: list, pace: name, ...PACE[name] };
+  }
+
+  const opts = (p, extra = {}) => ({ stops: p.stops, sm: p.sm, stretch: p.stretch, pace: p.pace, ...extra });
 
   const SCEN = {
     mooseBull(e) {
-      const stops = stopsFor(e, chance(0.5) ? 2 : 1, 'look', [4, 7]);
-      e.anchor = stops[0].x;
-      e.animals.push(walker(e, 'mooseBull', { stops }));
+      const p = plan(e, { pace: { walk: 70, trot: 22, run: 8 }, stops: { walk: [2, 5, 3], trot: [5, 5], run: [1] }, mode: 'look', dur: [4, 7] });
+      e.animals.push(walker(e, 'mooseBull', opts(p)));
     },
     mooseCow(e) {
-      const stops = stopsFor(e, chance(0.5) ? 2 : 1, 'look', [4, 7]);
-      e.anchor = stops[0].x;
-      e.animals.push(walker(e, 'mooseCow', { stops }));
+      const p = plan(e, { pace: { walk: 70, trot: 22, run: 8 }, stops: { walk: [2, 5, 3], trot: [5, 5], run: [1] }, mode: 'look', dur: [4, 7] });
+      e.animals.push(walker(e, 'mooseCow', opts(p)));
     },
     mooseCalf(e) {
-      const stops = stopsFor(e, 1, 'look', [5, 8]);
-      e.anchor = stops[0].x;
+      const p = plan(e, { pace: { walk: 75, trot: 25 }, stops: { walk: [1, 6, 3], trot: [4, 6] }, mode: 'look', dur: [5, 8] });
       e.protectMain = true; // the calf may be shot first, never the cow
-      e.animals.push(walker(e, 'mooseCow', { stops }));
+      e.animals.push(walker(e, 'mooseCow', opts(p)));
       // The calf follows – sometimes close behind, sometimes it shows up late
-      e.animals.push(walker(e, 'mooseCalf', { stops, off: rand(170, 420) * S, role: 'young' }));
+      e.animals.push(walker(e, 'mooseCalf', opts(p, { off: rand(170, 420) * S, role: 'young' })));
     },
     roeBuck(e) {
-      const stops = stopsFor(e, 1, 'look', [3, 5]);
-      e.anchor = stops[0].x;
-      e.animals.push(walker(e, 'roeBuck', { stops }));
+      const p = plan(e, { pace: { walk: 35, trot: 35, run: 30 }, stops: { walk: [2, 5, 3], trot: [5, 5], run: [1] }, mode: 'look', dur: [3, 5] });
+      e.animals.push(walker(e, 'roeBuck', opts(p)));
     },
     roeDoe(e) {
-      const stops = stopsFor(e, 1, 'graze', [4, 6]);
-      e.anchor = stops[0].x;
+      const p = plan(e, { pace: { walk: 55, trot: 30, run: 15 }, stops: { walk: [1, 6, 3], trot: [4, 6], run: [1] }, mode: 'graze', dur: [4, 6] });
       e.protectMain = true;
-      e.animals.push(walker(e, 'roeDoe', { stops }));
-      e.animals.push(walker(e, 'roeFawn', { stops, off: rand(110, 300) * S, role: 'young' }));
+      e.animals.push(walker(e, 'roeDoe', opts(p)));
+      e.animals.push(walker(e, 'roeFawn', opts(p, { off: rand(110, 300) * S, role: 'young' })));
     },
     boar(e) {
-      const stops = stopsFor(e, chance(0.4) ? 2 : 1, 'graze', [5, 8]);
-      e.anchor = stops[0].x;
-      e.animals.push(walker(e, 'boar', { stops }));
+      const p = plan(e, { pace: { walk: 60, trot: 25, run: 15 }, stops: { walk: [1, 6, 3], trot: [4, 6], run: [1] }, mode: 'graze', dur: [5, 8] });
+      e.animals.push(walker(e, 'boar', opts(p)));
     },
     sow(e) {
-      const stops = stopsFor(e, 1, 'graze', [6, 9]);
-      e.anchor = stops[0].x;
+      const p = plan(e, { pace: { walk: 75, trot: 25 }, stops: { walk: [0, 7, 3], trot: [3, 7] }, mode: 'graze', dur: [6, 9] });
       e.hold = 'sow'; // striped piglets cannot survive without the sow: spare them all
-      e.animals.push(walker(e, 'sow', { stops }));
+      e.animals.push(walker(e, 'sow', opts(p)));
       const n = 2 + Math.floor(rand(0, 3));
       for (let i = 0; i < n; i++) {
-        e.animals.push(walker(e, 'piglet', { stops, off: rand(60, 320) * S, role: 'young', sm: rand(0.9, 1.1) }));
+        e.animals.push(walker(e, 'piglet', opts(p, { off: rand(60, 320) * S, role: 'young', sm: p.sm * rand(0.9, 1.1) })));
       }
     },
     fox(e) {
-      const stops = stopsFor(e, 1, 'look', [1.5, 3]);
-      e.anchor = stops[0].x;
-      e.animals.push(walker(e, 'fox', { stops }));
+      const p = plan(e, { pace: { walk: 20, trot: 50, run: 30 }, stops: { walk: [2, 5, 3], trot: [5, 5], run: [1] }, mode: 'look', dur: [1.5, 3] });
+      e.animals.push(walker(e, 'fox', opts(p)));
     },
     dog(e) {
-      const stops = stopsFor(e, 1, 'look', [1.5, 3]);
-      e.anchor = stops[0].x;
+      const p = plan(e, { pace: { trot: 60, run: 40 }, stops: { trot: [4, 6], run: [1] }, mode: 'look', dur: [1.5, 3] });
       e.hold = 'dog';
-      e.animals.push(walker(e, 'dog', { stops }));
+      e.animals.push(walker(e, 'dog', opts(p)));
     },
     hare(e) {
-      const stops = stopsFor(e, chance(0.5) ? 2 : 1, 'look', [1.5, 3]);
-      e.anchor = stops[0].x;
-      e.animals.push(walker(e, 'hare', { stops }));
+      const p = plan(e, { pace: { walk: 30, trot: 30, run: 40 }, stops: { walk: [2, 5, 3], trot: [5, 5], run: [1] }, mode: 'look', dur: [1.5, 3] });
+      e.animals.push(walker(e, 'hare', opts(p)));
     },
     duck(e) {
       e.bird = true;
@@ -1056,37 +1081,59 @@
       }
     }
 
-    // The animals react: a vital hit drops the animal, everything else flees
-    for (const a of e.animals) {
-      if (a.dead || a.gone) continue;
-      if (a === target && grade === 'vital') {
-        a.dead = true;
-        a.vx = 0;
-        a.vy = 0;
-        sfx.thud();
-      } else {
-        a.flee = true;
-        a.state = 'walk';
-        a.headTarget = 0;
-      }
-    }
-
     // Hitting the mother of a calf/fawn is never acceptable – the young come first
     if (target && target.role === 'main' && e.protectMain) why.unshift('young');
 
+    let out;
     if (why.length) {
-      resolve('unsafe', POINTS.unsafe, 'res.unsafe', `why.${why[0]}`, 'bad');
+      out = ['unsafe', POINTS.unsafe, 'res.unsafe', `why.${why[0]}`, 'bad'];
     } else if (grade === 'vital') {
-      // The dead animal keeps the state it had when the shot went off
+      // The animal keeps the state it had when the shot went off
       const calm = target.sp.kind !== 'bird' && target.state === 'stop';
       const youngFirst = target.role === 'young' && e.protectMain;
-      resolve('clean', POINTS.clean + (calm ? POINTS.still : 0),
-        youngFirst ? 'res.cleanYoung' : calm ? 'res.still' : 'res.clean', youngFirst ? 'why.calf' : 'why.clear', 'good');
+      out = ['clean', POINTS.clean + (calm ? POINTS.still : 0),
+        youngFirst ? 'res.cleanYoung' : calm ? 'res.still' : 'res.clean', youngFirst ? 'why.calf' : 'why.clear', 'good'];
     } else if (grade === 'body') {
-      resolve('wound', POINTS.wound, 'res.wound', 'why.wound', 'bad');
+      out = ['wound', POINTS.wound, 'res.wound', 'why.wound', 'bad'];
     } else {
-      resolve('miss', 0, 'res.miss', 'why.miss', 'neutral');
+      out = ['miss', 0, 'res.miss', 'why.miss', 'neutral'];
     }
+
+    // Freeze the scene for a moment so the shooter can see where the shot went
+    // and where it should have gone. Afterwards the animals react and the
+    // encounter is scored.
+    let ref = target;
+    if (!ref) {
+      let best = Infinity;
+      for (const a of e.animals) {
+        if (a.dead || a.gone) continue;
+        const d = Math.hypot(a.x - x, a.by - y);
+        if (d < best) { best = d; ref = a; }
+      }
+    }
+    game.review = {
+      x, y, ref, tone: out[4],
+      apply() {
+        // A vital hit drops the animal, everything else flees
+        for (const a of e.animals) {
+          if (a.dead || a.gone) continue;
+          if (a === target && grade === 'vital') {
+            a.dead = true;
+            a.vx = 0;
+            a.vy = 0;
+            sfx.thud();
+          } else {
+            a.flee = true;
+            a.stretch = 1.7;
+            a.state = 'walk';
+            a.headTarget = 0;
+          }
+        }
+        resolve(...out);
+      },
+    };
+    game.phase = 'review';
+    game.timer = REVIEW_S;
   }
 
   canvas.addEventListener('pointerdown', (ev) => {
@@ -1113,9 +1160,12 @@
   function update(dt) {
     if (game.scene !== 'play') return;
     const e = game.enc;
-    for (const a of e.animals) updateAnimal(a, dt);
+    if (game.phase !== 'review') for (const a of e.animals) updateAnimal(a, dt);
 
-    if (game.phase === 'ready') {
+    if (game.phase === 'review') {
+      game.timer -= dt;
+      if (game.timer <= 0) game.review.apply();
+    } else if (game.phase === 'ready') {
       game.timer -= dt;
       if (!game.readyBeeped && game.timer < 0.9) {
         game.readyBeeped = true;
@@ -1189,6 +1239,43 @@
     text(t(b.head) + pts, W / 2, y, 52, toneColor(b.tone, a), 'center', 700);
     text(t(b.why), W / 2, y + 52 * S, 27, `rgba(125, 147, 166, ${a})`);
     text(t('saw', { name: b.name }), W / 2, y + 92 * S, 22, `rgba(75, 93, 108, ${a})`);
+  }
+
+  /** The frozen moment after a shot: where it hit and where it should have. */
+  function drawReview() {
+    const r = game.review;
+    if (game.phase !== 'review' || !r) return;
+    const fade = Math.min(1, (REVIEW_S - game.timer) / 0.2);
+    ctx.save();
+    ctx.globalAlpha = fade;
+    // The ideal area: heart and lungs behind the shoulder (not for birds)
+    const a = r.ref;
+    if (a && a.sp.kind !== 'bird') {
+      const v = a.sp.vit;
+      const cx = a.x + a.dir * v.x * a.s;
+      const cy = a.by + v.y * a.s;
+      const rad = Math.max(v.r * a.s, 22 * S);
+      ctx.strokeStyle = rgba(C.hit, 0.75);
+      ctx.lineWidth = 3 * S;
+      ctx.setLineDash([9 * S, 7 * S]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      text(t('review.ideal'), cx, cy + rad + 24 * S, 22, rgba(C.hit, 0.9), 'center', 600);
+    }
+    // The shot: a dark hole with a ring (thin and dim – no bright dots for the camera)
+    ctx.fillStyle = 'rgba(3, 5, 7, 0.95)';
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, 7 * S, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = toneColor(r.tone, 0.95);
+    ctx.lineWidth = 3 * S;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, 15 * S, 0, Math.PI * 2);
+    ctx.stroke();
+    text(t('review.hit'), r.x, r.y - 30 * S, 22, toneColor(r.tone, 1), 'center', 600);
+    ctx.restore();
   }
 
   function drawReady() {
@@ -1319,6 +1406,7 @@
       // Far animals first: the smaller (younger) ones behind
       for (const a of e.animals) drawAnimal(a);
       drawForeground(e);
+      drawReview();
       drawHud();
       drawReady();
       drawBanner();

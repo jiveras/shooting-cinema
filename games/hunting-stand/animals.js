@@ -221,14 +221,15 @@
     const def = front ? sp.front : sp.hind;
     const pivot = [def.px * sp.L, def.py];
     const wb = a.wb || 0;
-    const trot = sp.gait === 'trot' || a.flee;
+    const stretch = a.stretch || 1;
+    const trot = sp.gait === 'trot' || stretch > 1.2;
     // Walk: near hind 0, near front .25, far hind .5, far front .75. Trot: diagonal pairs.
     const off = trot
       ? { nh: 0, nf: 0.5, fh: 0.5, ff: 0 }
       : { nh: 0, nf: 0.25, fh: 0.5, ff: 0.75 };
     const ph = (a.gait || 0) + (front ? (side === 'near' ? off.nf : off.ff) : (side === 'near' ? off.nh : off.fh));
-    const stride = sp.stride * (a.flee ? 1.7 : 1);
-    const lift = sp.lift * (a.flee ? 1.6 : 1);
+    const stride = sp.stride * stretch;
+    const lift = sp.lift * Math.min(1.6, stretch);
     const p = ((ph % 1) + 1) % 1;
     const duty = 0.6;
     let dx;
@@ -350,7 +351,7 @@
     ctx.lineJoin = 'round';
 
     // Body bounce
-    const bounce = wb ? Math.sin((a.gait || 0) * Math.PI * 4) * (a.flee ? 2.4 : 1.1) * wb : 0;
+    const bounce = wb ? Math.sin((a.gait || 0) * Math.PI * 4) * ((a.stretch || 1) > 1.5 ? 2.4 : 1.1) * wb : 0;
     ctx.save();
     ctx.translate(0, bounce + (a.deadK || 0) * (sp.g - sp.cd - 2));
 
