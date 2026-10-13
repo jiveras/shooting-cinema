@@ -64,6 +64,15 @@
     });
   }
   showMask.addEventListener('change', () => store.set('showMask', showMask.checked ? '1' : '0'));
+  // ---- Tabs in the side panel ----
+  function showTab(name) {
+    document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.tab-page').forEach((p) => { p.hidden = p.dataset.page !== name; });
+    store.set('tab', name);
+  }
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  showTab(store.get('tab') === 'settings' ? 'settings' : 'play');
+
   $('reset-settings').addEventListener('click', () => {
     detector.update(window.LaserDetector.defaults);
     saveSettings();

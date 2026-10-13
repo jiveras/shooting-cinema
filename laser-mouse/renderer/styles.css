@@ -129,7 +129,7 @@ body { grid-template-rows: auto 1fr auto; }
   border-left: 1px solid var(--border);
 }
 
-.panel section + section {
+.panel .tab-page > section + section {
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -268,3 +268,23 @@ kbd {
 
 /* ---- Language picker ---- */
 #lang-select { min-width: 96px; }
+
+/* ---- Tabs in the side panel ---- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: -4px 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.panel .tabs .tab {
+  margin: 0;
+  width: auto;
+  flex: 1;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+}
+.panel .tabs .tab.active { color: inherit; border-bottom-color: var(--accent, #3fb6ff); }
+.tab-page[hidden] { display: none; }

@@ -196,7 +196,7 @@
     // An inactive target in the reaction drill: only a faint outline
     idle: '#1a2833',
     hit: [70, 170, 120],
-    miss: [120, 110, 110],
+    miss: [110, 122, 134], // bluish grey, no red for the camera
     timer: '#5f7a8f',
   };
 
@@ -531,7 +531,7 @@
     const d = DRILLS[game.drill];
     const now = performance.now();
     const h = hitTest(x, y);
-    const shot = { t: now - game.goAt, x, y, target: h.target, pts: h.pts };
+    const shot = { t: now - game.goAt, at: now, x, y, target: h.target, pts: h.pts };
     if (game.drill === 'random') shot.correct = h.target === game.active;
     game.shots.push(shot);
 
@@ -611,9 +611,19 @@
     }
   }
 
+  const SHOT_FADE_START = 1500; // ms before a shot mark starts to fade
+  const SHOT_FADE_MS = 2000;
+
   /** A shot mark: a dark hole with a thin ring (green = hit, grey = miss). */
   function drawShot(s, i) {
     const good = s.target !== null && s.correct !== false;
+    // Marks fade away (except in grouping, where the pattern is the point)
+    // so old shots do not hide the next one from the camera.
+    const age = performance.now() - s.at;
+    const fade = i !== undefined ? 1 : Math.max(0, Math.min(1, 1 - (age - SHOT_FADE_START) / SHOT_FADE_MS));
+    if (fade <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = fade;
     ctx.fillStyle = 'rgba(3, 5, 7, 0.95)';
     ctx.beginPath();
     ctx.arc(s.x, s.y, 6 * S, 0, Math.PI * 2);
@@ -624,6 +634,7 @@
     ctx.arc(s.x, s.y, 11 * S, 0, Math.PI * 2);
     ctx.stroke();
     if (i !== undefined) text(String(i + 1), s.x + 18 * S, s.y - 16 * S, 16, C.dim);
+    ctx.restore();
   }
 
   function drawPlay(now) {

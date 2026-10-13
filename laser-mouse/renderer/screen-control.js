@@ -71,7 +71,8 @@
       this.el.zeroReset.addEventListener('click', () => this.resetZero());
 
       // ---- Real mouse clicks ----
-      // Always OFF at startup, for safety.
+      // The click box is ticked by default, but clicks only go live once the
+      // display is calibrated (see _syncMouse).
       this.mouseLive = false;
       this.clickCount = 0;
       this.lastClick = null;
@@ -137,6 +138,7 @@
       if (pick) this.el.display.value = pick.id;
       this._loadMapping();
       this._updateUi();
+      this._syncMouse();
     }
 
     _renderDisplayOptions() {
@@ -161,6 +163,7 @@
       if (this.mode !== 'idle') await this.stop();
       this._loadMapping();
       this._updateUi();
+      this._syncMouse();
     }
 
     _key() {
@@ -352,17 +355,23 @@
 
     // ---------- Mouse control ----------
 
+    // Pauses real mouse control (the boxes keep their state) – used while
+    // calibrating or switching display. _syncMouse() resumes it.
     async _mouseOff() {
-      if (!this.mouseLive && !this.el.mouseClick.checked && !this.el.mouseFollow.checked) return;
-      this.el.mouseClick.checked = this.el.mouseFollow.checked = false;
-      await this._syncMouse();
+      if (!this.mouseLive) return;
+      await this.bridge.mouseDisable();
+      this.mouseLive = false;
+      this._renderMouse();
     }
 
     async _syncMouse() {
       const want = this.el.mouseClick.checked || this.el.mouseFollow.checked;
       this._mouseNote = null;
       if (want && !this.mapping) {
-        this.el.mouseClick.checked = this.el.mouseFollow.checked = false;
+        if (this.mouseLive) {
+          await this.bridge.mouseDisable();
+          this.mouseLive = false;
+        }
         this._mouseNote = { key: 'mouse.calibrateFirst' };
         return this._renderMouse();
       }
@@ -508,6 +517,7 @@
         this.sounds.done();
         setTimeout(() => this.sounds.say(t('say.calibDone')), 500);
         this.startTest();
+        this._syncMouse();
       } catch (e) {
         console.error(e);
         this._status = { key: 'calib.failed' };

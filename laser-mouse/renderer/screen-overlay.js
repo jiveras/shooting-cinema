@@ -16,6 +16,7 @@
   const GREEN = '#2fd27a';
   const DIM = 'rgba(63, 182, 255, 0.35)';
   const SHOT_LIFETIME = 2500;
+  const ZERO_HIT_LIFETIME = 2500; // ms a zeroing hit stays visible before the result
 
   const state = {
     mode: 'idle', // 'idle' | 'calibrate' | 'test' | 'zero'
@@ -25,6 +26,7 @@
     pointer: null, // { x, y } normalized, or null
     shots: [],
     flashUntil: 0,
+    zeroTimes: [], // when each zeroing hit arrived
     text: '',
   };
 
@@ -67,6 +69,8 @@
         break;
       case 'zero':
         state.zero = msg;
+        if (msg.hits.length < state.zeroTimes.length) state.zeroTimes = [];
+        while (state.zeroTimes.length < msg.hits.length) state.zeroTimes.push(performance.now());
         if (msg.hits.length) state.flashUntil = performance.now() + 200;
         break;
     }
@@ -182,9 +186,13 @@
     z.hits.forEach((h, i) => {
       const x = h.x * W;
       const y = h.y * H;
+      // While shooting, a hit fades away so it cannot drown out the next one
+      const a = res ? 1 : Math.max(0, 1 - (now - (state.zeroTimes[i] || now)) / ZERO_HIT_LIFETIME);
+      ctx.globalAlpha = a;
       const c = res ? 'rgba(120, 140, 160, 0.6)' : CYAN;
       ring(x, y, 11, c, 2);
       label(String(i + 1), x + 20, y - 16, 16, c);
+      ctx.globalAlpha = 1;
       if (res) {
         const cx = (h.x - res.dx) * W;
         const cy = (h.y - res.dy) * H;

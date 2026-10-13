@@ -77,6 +77,8 @@
       'offset.centre': 'mitt i prick',
 
       // Mouse
+      'tabs.play': 'Spel & inskjutning',
+      'tabs.settings': 'Inställningar',
       'mouse.title': 'Riktiga musklick',
       'mouse.click': 'Klicka vid skott',
       'mouse.follow': 'Muspekaren följer lasern',
@@ -253,6 +255,8 @@
       'offset.centre': 'dead centre',
 
       // Mouse
+      'tabs.play': 'Games & zeroing',
+      'tabs.settings': 'Settings',
       'mouse.title': 'Real mouse clicks',
       'mouse.click': 'Click on shot',
       'mouse.follow': 'Pointer follows the laser',
