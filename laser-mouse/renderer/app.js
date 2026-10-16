@@ -99,46 +99,18 @@
   const screenControl = new window.ScreenControl({ $, store, camera });
 
   // ---- Games ----
-  const gameSelect = $('game-select');
-  let games = [];
+  // One button opens the game menu full screen on the calibrated display; the
+  // games are picked and switched with the gun from there.
   let gameOpen = false;
 
-  function renderGames() {
-    const selected = gameSelect.value || store.get('gameId');
-    gameSelect.innerHTML = '';
-    for (const g of games) {
-      const opt = document.createElement('option');
-      opt.value = g.id;
-      opt.textContent = i18n.pick(g.name);
-      gameSelect.appendChild(opt);
-    }
-    if (selected && games.some((g) => g.id === selected)) gameSelect.value = selected;
-    syncGameUi();
-  }
-
   function syncGameUi() {
-    const g = games.find((x) => x.id === gameSelect.value);
-    $('game-desc').textContent = g ? i18n.pick(g.description) : t('games.none');
-    $('game-start').disabled = !g;
     $('game-stop').disabled = !gameOpen;
   }
+  syncGameUi();
 
-  async function loadGames() {
-    games = (await window.laserMouse.listGames?.()) || [];
-    renderGames();
-  }
-
-  // Re-scan games/ whenever the window gets focus, so games added while the
-  // app is running show up without a restart.
-  window.addEventListener('focus', () => loadGames().catch(console.error));
-
-  gameSelect.addEventListener('change', () => {
-    store.set('gameId', gameSelect.value);
-    syncGameUi();
-  });
   $('game-start').addEventListener('click', async () => {
-    // The game opens in the same language as Laser Mouse
-    const res = await window.laserMouse.openGame(gameSelect.value, screenControl.display?.id, i18n.lang);
+    // The games open in the same language as Laser Mouse
+    const res = await window.laserMouse.openGames(screenControl.display?.id, i18n.lang);
     gameOpen = !!res?.ok;
     syncGameUi();
   });
@@ -383,7 +355,6 @@
     renderToggle();
     renderMessage();
     renderCameraOptions();
-    renderGames();
     spots.onChange();
     if (camera.running) buildExposureControls();
   });
@@ -405,7 +376,6 @@
     if (cameras.length === 0) showMessage('camera.none');
 
     await screenControl.init();
-    await loadGames();
   }
 
   init();

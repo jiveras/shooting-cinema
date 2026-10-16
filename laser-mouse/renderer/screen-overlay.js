@@ -104,12 +104,9 @@
   }
 
   function drawCalibrate(W, H, now) {
-    ctx.fillStyle = 'rgba(5, 8, 14, 0.92)';
+    // Fully opaque so nothing behind (menu bar, desktop) shines through
+    ctx.fillStyle = 'rgb(5, 8, 14)';
     ctx.fillRect(0, 0, W, H);
-    // Frame that shows which display is being calibrated
-    ctx.strokeStyle = DIM;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(2, 2, W - 4, H - 4);
 
     for (const p of state.captured) {
       ring(p.x * W, p.y * H, 14, GREEN, 2);

@@ -75,7 +75,7 @@ laser-mouse/
 | `openOverlay(displayId)` / `closeOverlay()` / `sendOverlay(msg)` | Overlay window on a display |
 | `mouseEnable()` / `mouseDisable()` / `onMouseDisabled(cb)` | Turn OS mouse control on/off (checks Accessibility on macOS) |
 | `mouseClick(displayId, x, y)` / `mouseMove(displayId, x, y)` | Click / move at a normalized point (0–1) on a display |
-| `listGames()` / `openGame(id, displayId, lang)` / `closeGame()` | Games in `../games/` (opened with `?lang=`) |
+| `openGames(displayId, lang)` / `closeGame()` | Opens the game window on `games/hub/` (`?lang=`) / closes it |
 
 ---
 
@@ -214,7 +214,9 @@ Create a folder in `games/` with an `index.html` and a `game.json`:
 }
 ```
 
-Laser Mouse picks it up automatically and opens it with `?lang=sv` or `?lang=en` – support both languages (Swedish as the default). React to `pointerdown`/click events; closing the window with `window.close()` (e.g. on Esc in the menu) returns to Laser Mouse.
+Laser Mouse picks it up automatically: it is listed in the game menu (`games/hub/`), which opens it with `?lang=sv` or `?lang=en` – support both languages (Swedish as the default). React to `pointerdown`/click events.
+
+The whole session runs in one window so everything can be done with the gun. Include `<script src="../shared/hub.js"></script>` and, in the menu scene, add `Hub.button(S, H, lang)` to your buttons (bottom-left corner) and call `Hub.go(lang)` when it is shot; call `Hub.exit(lang)` on Esc in the menu. Standalone in a browser `Hub.available` is false and `Hub.exit` falls back to `window.close()`. The game window has a small bridge (`game-preload.js`: `window.laserGames.list()` / `.close()`) that only the game menu uses.
 
 ### Design rules for projector + webcam
 

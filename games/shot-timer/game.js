@@ -508,7 +508,8 @@
       }
       fire();
       if (!b) return;
-      if (b.id === 'lang') toggleLang();
+      if (b.id === 'hub') Hub.go(lang);
+      else if (b.id === 'lang') toggleLang();
       else if (b.id === 'menu') game.scene = 'menu';
       else if (b.id === 'again') startDrill(game.drill);
       else startDrill(b.id);
@@ -550,7 +551,7 @@
   });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (game.scene === 'menu') window.close();
+      if (game.scene === 'menu') Hub.exit(lang);
       else game.scene = 'menu';
     } else if (e.key === 'f' || e.key === 'F') {
       if (document.fullscreenElement) document.exitFullscreen();
@@ -731,6 +732,7 @@
       game.buttons.push({ id: 'sound', label: t('sound', { name: Gunshots.nameOf(shotSound, lang) }), sub: t('soundSub'), x: x0, y: rowY, w: half, h: rowH, small: true });
     }
     game.buttons.push({ id: 'lang', label: t('language'), sub: t('languageSub'), x: Gunshots ? x0 + half + gap : x0, y: rowY, w: Gunshots ? half : full, h: rowH, small: true });
+    if (Hub.available) game.buttons.push(Hub.button(S, H, lang));
   }
 
   function layoutResults() {

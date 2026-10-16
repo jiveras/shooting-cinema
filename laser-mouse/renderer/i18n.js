@@ -97,10 +97,9 @@
 
       // Games
       'games.title': 'Spel',
-      'games.choose': 'Välj spel',
-      'games.start': 'Starta på vald skärm',
+      'games.help': 'Öppnar spelmenyn i helskärm. Där väljer och byter du spel med bössan.',
+      'games.start': 'Starta spel på vald skärm',
       'games.close': 'Stäng',
-      'games.none': 'Inga spel hittades i games/.',
 
       // Readout
       'laser.found': 'Laser hittad',
@@ -275,10 +274,9 @@
 
       // Games
       'games.title': 'Games',
-      'games.choose': 'Choose a game',
-      'games.start': 'Start on selected display',
+      'games.help': 'Opens the game menu full screen. Pick and switch games with the gun from there.',
+      'games.start': 'Start games on selected display',
       'games.close': 'Close',
-      'games.none': 'No games found in games/.',
 
       // Readout
       'laser.found': 'Laser found',

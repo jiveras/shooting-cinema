@@ -428,7 +428,8 @@
       }
       fire();
       if (!b) return;
-      if (b.id === 'lang') toggleLang();
+      if (b.id === 'hub') Hub.go(lang);
+      else if (b.id === 'lang') toggleLang();
       else if (b.id === 'menu') toMenu();
       else if (b.id === 'again') startRound(game.mode);
       else startRound(b.id);
@@ -474,7 +475,7 @@
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (game.scene === 'menu') window.close();
+      if (game.scene === 'menu') Hub.exit(lang);
       else toMenu();
     } else if (e.key === 'f' || e.key === 'F') {
       if (document.fullscreenElement) document.exitFullscreen();
@@ -551,6 +552,7 @@
       h: rowH,
       small: true,
     });
+    if (Hub.available) game.buttons.push(Hub.button(S, H, lang));
   }
 
   function layoutResults() {

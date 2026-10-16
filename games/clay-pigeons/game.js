@@ -705,7 +705,8 @@
       }
       fire();
       if (!b) return;
-      if (b.id === 'lang') toggleLang();
+      if (b.id === 'hub') Hub.go(lang);
+      else if (b.id === 'lang') toggleLang();
       else if (b.id === 'release') {
         release = release === 'auto' ? 'voice' : 'auto';
         store.set(RELEASE_KEY, release);
@@ -764,7 +765,7 @@
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (game.scene === 'menu') window.close();
+      if (game.scene === 'menu') Hub.exit(lang);
       else toMenu();
     } else if (e.key === 'f' || e.key === 'F') {
       if (document.fullscreenElement) document.exitFullscreen();
@@ -976,6 +977,7 @@
     items.push({ id: 'lang', label: t('language'), sub: t('languageSub') });
     const iw = (full - (items.length - 1) * gap) / items.length;
     items.forEach((it, i) => game.buttons.push({ ...it, x: x0 + i * (iw + gap), y: rowY, w: iw, h: rowH, small: true }));
+    if (Hub.available) game.buttons.push(Hub.button(S, H, lang));
   }
 
   function layoutResults() {

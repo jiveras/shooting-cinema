@@ -104,7 +104,7 @@ A laser taped to a barrel is never exactly in line with the sights. In the **Gam
 
 ### 5. Shoot!
 
-Make sure **Click on shot** is ticked (it is by default; *Settings* tab), then pick a game in the **Games & zeroing** tab and press **Start on selected display** – it opens full screen on your calibrated display. Every laser flash is now a mouse click.
+Make sure **Click on shot** is ticked (it is by default; *Settings* tab), then press **Start games on selected display** in the **Games & zeroing** tab – the game menu opens full screen on your calibrated display. Every laser flash is now a mouse click, so you pick games, switch between them and quit with the gun.
 
 > 🛑 Press <kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>L</kbd> at any time to turn mouse control off.
 

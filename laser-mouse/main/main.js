@@ -86,6 +86,13 @@ async function openOverlay(displayId) {
   }
 
   overlayWindow.setBounds(display.bounds);
+  // Same as the games: cover the whole display incl. the menu bar
+  if (process.platform === 'darwin') {
+    overlayWindow.setSimpleFullScreen(true);
+    overlayWindow.setBounds(display.bounds); // simple fullscreen may pick the wrong display
+  } else {
+    overlayWindow.setFullScreen(true);
+  }
   overlayWindow.showInactive();
   return { id: display.id, bounds: display.bounds };
 }
@@ -216,12 +223,13 @@ app.on('will-quit', () => globalShortcut.unregisterAll());
 
 const GAMES_DIR = path.join(ROOT, '..', 'games');
 let gameWindow = null;
+const HUB_ID = 'hub'; // the game menu that links to all the other games
 
 function listGames() {
   try {
     return fs
       .readdirSync(GAMES_DIR, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && fs.existsSync(path.join(GAMES_DIR, d.name, 'index.html')))
+      .filter((d) => d.isDirectory() && d.name !== HUB_ID && fs.existsSync(path.join(GAMES_DIR, d.name, 'index.html')))
       .map((d) => {
         let meta = {};
         try {
@@ -238,12 +246,9 @@ function closeGame() {
   if (gameWindow && !gameWindow.isDestroyed()) gameWindow.close();
 }
 
-async function openGame(gameId, displayId, lang = 'sv') {
-  const game = listGames().find((g) => g.id === gameId);
-  if (!game) return { ok: false, reason: 'Game not found' };
+async function openGames(displayId, lang = 'sv') {
   const display =
     screen.getAllDisplays().find((d) => d.id === displayId) || screen.getPrimaryDisplay();
-  const title = typeof game.name === 'object' ? game.name[lang] || game.name.en || gameId : game.name;
 
   closeGame();
   gameWindow = new BrowserWindow({
@@ -252,27 +257,43 @@ async function openGame(gameId, displayId, lang = 'sv') {
     show: false,
     backgroundColor: '#06080b',
     acceptFirstMouse: true, // macOS: the first click should hit the game, not just focus the window
-    title,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    title: 'Laser Mouse – games',
+    webPreferences: {
+      preload: path.join(ROOT, 'game-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
   });
   gameWindow.on('closed', () => {
     gameWindow = null;
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:closed');
   });
-  // The game starts in the same language as Laser Mouse (?lang=sv|en)
-  await gameWindow.loadFile(path.join(GAMES_DIR, game.id, 'index.html'), { query: { lang } });
+  // The window stays open while you move between the menu and the games, so
+  // everything can be done with the gun. The language is passed as ?lang=sv|en.
+  await gameWindow.loadFile(path.join(GAMES_DIR, HUB_ID, 'index.html'), { query: { lang } });
+  // Full screen (also covers the macOS menu bar). Done after show() and re-checked
+  // on focus and on every page load: before the window is active macOS can leave
+  // the menu bar up, and it must stay hidden while moving between the games.
+  const goFullScreen = () => {
+    if (!gameWindow || gameWindow.isDestroyed()) return;
+    if (process.platform === 'darwin') {
+      if (!gameWindow.isSimpleFullScreen()) gameWindow.setSimpleFullScreen(true);
+    } else if (!gameWindow.isFullScreen()) {
+      gameWindow.setFullScreen(true);
+    }
+  };
   gameWindow.setBounds(display.bounds);
-  if (process.platform === 'darwin') {
-    gameWindow.setSimpleFullScreen(true); // also covers the menu bar, without a new Space
-  } else {
-    gameWindow.setFullScreen(true);
-  }
   gameWindow.show();
-  return { ok: true, name: title };
+  gameWindow.focus();
+  goFullScreen();
+  gameWindow.on('focus', goFullScreen);
+  gameWindow.webContents.on('did-finish-load', goFullScreen);
+  return { ok: true };
 }
 
 ipcMain.handle('games:list', () => listGames());
-ipcMain.handle('games:open', (_e, gameId, displayId, lang) => openGame(gameId, displayId, lang));
+ipcMain.handle('games:open', (_e, displayId, lang) => openGames(displayId, lang));
 ipcMain.handle('games:close', () => closeGame());
 
 // ---- Main window ----
